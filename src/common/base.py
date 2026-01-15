@@ -29,6 +29,17 @@ class MarketDataProvider(ABC):
     def get_universe(self, date: datetime) -> list[int]:
         pass
 
+    @abstractmethod
+    def get_returns(
+        self,
+        internal_ids: list[int],
+        start: datetime,
+        end: datetime,
+        type: str = "RAW",
+        as_of: datetime | None = None,
+    ) -> Any:
+        pass
+
 
 class AlphaModel(ABC):
     @abstractmethod
@@ -57,6 +68,7 @@ class PortfolioOptimizer(ABC):
         timestamp: datetime,
         forecasts: dict[int, float],
         current_weights: dict[int, float] | None = None,
+        factor_returns: dict[str, float] | None = None,
     ) -> dict[int, float]:
         pass
 

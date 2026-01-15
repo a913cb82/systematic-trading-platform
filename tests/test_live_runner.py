@@ -36,7 +36,7 @@ class TestLiveRunner(unittest.TestCase):
 
         self.internal_ids = [1, 2]
         self.alpha_model = MeanReversionModel(
-            self.feature_store,
+            self.mde,
             self.internal_ids,
             publisher=self.forecast_publisher,
         )

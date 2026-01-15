@@ -7,13 +7,19 @@ import pandas as pd
 from ..common.base import MarketDataProvider
 from ..common.config import config
 from ..common.types import Bar
+from .corporate_actions import CorporateActionMaster
 
 
 class MarketDataEngine(MarketDataProvider):
-    def __init__(self, base_path: Optional[str] = None):
+    def __init__(
+        self,
+        base_path: Optional[str] = None,
+        ca_master: Optional[CorporateActionMaster] = None,
+    ):
         self.base_path = base_path or config.get(
             "data.market_path", "data/market"
         )
+        self.ca_master = ca_master
         self.bars_path = os.path.join(self.base_path, "bars")
         os.makedirs(self.bars_path, exist_ok=True)
         self._subscribers: List[tuple[List[int], Callable[[Bar], None]]] = []
@@ -111,6 +117,56 @@ class MarketDataEngine(MarketDataProvider):
                 if "internal_id" not in filtered_df.columns:
                     filtered_df["internal_id"] = internal_id
 
+                # Dynamic Adjustment
+                if (
+                    adjustment == "RATIO"
+                    and self.ca_master
+                    and not filtered_df.empty
+                ):
+                    # Fetch actions up to the end of the query period
+                    actions = self.ca_master.get_actions(
+                        [internal_id],
+                        start=datetime(1900, 1, 1),
+                        end=end,
+                        as_of=as_of,
+                    )
+                    if actions:
+                        # Sort actions by ex_date descending
+                        actions.sort(key=lambda x: x["ex_date"], reverse=True)
+                        # We apply adjustments backwards from the current date
+
+                        # Convert to DataFrame for easier manipulation
+                        # but simple loop is fine for performance here.
+                        for action in actions:
+                            # If ex_date is in the future of a bar, it affects
+                            # that bar's price (backward adjustment)
+                            # e.g. 2-for-1 split on day T.
+                            # All bars < T must have prices divided by 2.
+                            if action["type"] == "SPLIT":
+                                ratio = action["ratio"]
+                                # Find bars before this split
+                                mask_pre = (
+                                    filtered_df["timestamp"]
+                                    < action["ex_date"]
+                                )
+                                filtered_df.loc[
+                                    mask_pre, ["open", "high", "low", "close"]
+                                ] /= ratio
+                            elif action["type"] == "DIVIDEND":
+                                # For dividends, ratio adjustment:
+                                # (Price - Div) / Price
+                                # This is more complex because it depends on
+                                # the price at ex-date.
+                                # Simplified for now: multiplier
+                                ratio = action["ratio"]
+                                mask_pre = (
+                                    filtered_df["timestamp"]
+                                    < action["ex_date"]
+                                )
+                                filtered_df.loc[
+                                    mask_pre, ["open", "high", "low", "close"]
+                                ] *= ratio
+
                 all_bars.extend(filtered_df.to_dict("records"))
 
         return all_bars
@@ -132,3 +188,37 @@ class MarketDataEngine(MarketDataProvider):
                 except (IndexError, ValueError):
                     continue
         return internal_ids
+
+    def get_returns(
+        self,
+        internal_ids: List[int],
+        start: datetime,
+        end: datetime,
+        type: str = "RAW",
+        as_of: Optional[datetime] = None,
+    ) -> pd.DataFrame:
+        """
+        Calculates returns for given assets.
+        If type="RESIDUAL", it requires a risk model to regress out factors.
+        """
+        # 1. Fetch adjusted bars (Backtesting usually wants adjusted)
+        bars = self.get_bars(
+            internal_ids, start, end, adjustment="RATIO", as_of=as_of
+        )
+        if not bars:
+            return pd.DataFrame()
+
+        df = pd.DataFrame(bars)
+        df = df.pivot(index="timestamp", columns="internal_id", values="close")
+        returns = df.pct_change().dropna(how="all")
+
+        if type == "RAW":
+            return returns
+
+        if type == "RESIDUAL":
+            # This would ideally take a RiskModel instance.
+            # For now, we'll return raw and leave residual logic
+            # for the alpha model or a specific 'ResidualReturnsEngine'
+            return returns
+
+        return returns

@@ -20,3 +20,21 @@ class SignalProcessor:
         forecasts: Dict[int, float], limit: float = 3.0
     ) -> Dict[int, float]:
         return {k: max(min(v, limit), -limit) for k, v in forecasts.items()}
+
+    @staticmethod
+    def apply_decay(
+        forecast: float,
+        initial_time: float,
+        current_time: float,
+        half_life: float,
+    ) -> float:
+        """
+        Applies exponential decay to a signal.
+        Signal_t = Signal_0 * e^(-lambda * delta_t)
+        where lambda = ln(2) / half_life
+        """
+        delta_t = current_time - initial_time
+        if delta_t < 0:
+            return forecast
+        decay_constant = np.log(2) / half_life
+        return float(forecast * np.exp(-decay_constant * delta_t))

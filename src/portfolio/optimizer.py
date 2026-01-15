@@ -14,6 +14,7 @@ class SimpleOptimizer(PortfolioOptimizer):
         timestamp: datetime,
         forecasts: Dict[int, float],
         current_weights: Dict[int, float] | None = None,
+        factor_returns: Dict[str, float] | None = None,
     ) -> Dict[int, float]:
         """
         Simple optimizer that treats forecasts as target weights.
@@ -40,6 +41,8 @@ class CvxpyOptimizer(PortfolioOptimizer):
         market_impact_coeff: float = 0.1,
         lambda_sector: float = 0.0,
         lambda_market: float = 0.0,
+        lambda_leverage: float = 10.0,
+        target_leverage: float = 1.0,
     ):
         self.risk_model = risk_model
         self.lambda_risk = (
@@ -60,74 +63,88 @@ class CvxpyOptimizer(PortfolioOptimizer):
         self.market_impact_coeff = market_impact_coeff
         self.lambda_sector = lambda_sector
         self.lambda_market = lambda_market
+        self.lambda_leverage = lambda_leverage
+        self.target_leverage = target_leverage
+
+    def _reconstruct_mu(
+        self,
+        timestamp: datetime,
+        internal_ids: list[int],
+        forecasts: Dict[int, float],
+        factor_returns: Dict[str, float] | None,
+    ) -> np.ndarray:
+        mu = np.array([forecasts[iid] for iid in internal_ids])
+        if factor_returns:
+            exposures = self.risk_model.get_factor_exposures(
+                timestamp, internal_ids
+            )
+            for i, iid in enumerate(internal_ids):
+                asset_exp = exposures.get(iid, {})
+                for factor, beta in asset_exp.items():
+                    if factor in factor_returns:
+                        mu[i] += beta * factor_returns[factor]
+        return mu
+
+    def _get_soft_penalties(
+        self,
+        timestamp: datetime,
+        internal_ids: list[int],
+        w: cp.Variable,
+    ) -> float:
+        soft_penalties = 0
+        if self.lambda_market > 0:
+            soft_penalties += self.lambda_market * cp.square(cp.sum(w))
+
+        if self.lambda_sector > 0:
+            exposures = self.risk_model.get_factor_exposures(
+                timestamp, internal_ids
+            )
+            sectors: set[str] = set()
+            for exp in exposures.values():
+                sectors.update(exp.keys())
+            for sector in sorted(list(sectors)):
+                exp_vec = np.array(
+                    [exposures[iid].get(sector, 0.0) for iid in internal_ids]
+                )
+                soft_penalties += self.lambda_sector * cp.square(w @ exp_vec)
+
+        if self.lambda_leverage > 0:
+            soft_penalties += self.lambda_leverage * cp.square(
+                cp.norm(w, 1) - self.target_leverage
+            )
+        return soft_penalties
 
     def optimize(
         self,
         timestamp: datetime,
         forecasts: Dict[int, float],
         current_weights: Dict[int, float] | None = None,
+        factor_returns: Dict[str, float] | None = None,
     ) -> Dict[int, float]:
         if not forecasts:
             return {}
 
         internal_ids = sorted(forecasts.keys())
         n = len(internal_ids)
-        mu = np.array([forecasts[iid] for iid in internal_ids])
+        mu = self._reconstruct_mu(
+            timestamp, internal_ids, forecasts, factor_returns
+        )
 
-        # Current weights vector
         w_prev = np.zeros(n)
         if current_weights:
             for i, iid in enumerate(internal_ids):
                 w_prev[i] = current_weights.get(iid, 0.0)
 
-        # Get covariance matrix
         cov_matrix = np.array(
             self.risk_model.get_covariance_matrix(timestamp, internal_ids)
         )
 
-        # Define CVXPY problem
         w = cp.Variable(n)
-
-        # Objective: Maximize w^T * mu - 0.5 * lambda * w^T * Sigma * w
         risk = cp.quad_form(w, cov_matrix)
-
-        # Linear Transaction costs (turnover penalty)
         turnover = cp.norm(w - w_prev, 1)
-
-        # Non-linear Market Impact (Square Root Law proxy: power 1.5)
         impact = cp.sum(cp.power(cp.abs(w - w_prev), 1.5))
+        soft_penalties = self._get_soft_penalties(timestamp, internal_ids, w)
 
-        # Soft constraints penalties
-        soft_penalties = 0
-
-        # Market Neutrality (Net Exposure target 0)
-        if self.lambda_market > 0:
-            soft_penalties += self.lambda_market * cp.square(cp.sum(w))
-
-        # Sector Neutrality
-        if self.lambda_sector > 0:
-            exposures = self.risk_model.get_factor_exposures(
-                timestamp, internal_ids
-            )
-            sectors = sorted(
-                list(
-                    set(
-                        exp.get("sector", "Unknown")
-                        for exp in exposures.values()
-                    )
-                )
-            )
-            for sector in sectors:
-                # Exposure to this sector
-                exp_vec = np.array(
-                    [
-                        1.0 if exposures[iid].get("sector") == sector else 0.0
-                        for iid in internal_ids
-                    ]
-                )
-                soft_penalties += self.lambda_sector * cp.square(w @ exp_vec)
-
-        # Objective function
         objective = cp.Maximize(
             w @ mu
             - 0.5 * self.lambda_risk * risk
@@ -136,29 +153,14 @@ class CvxpyOptimizer(PortfolioOptimizer):
             - soft_penalties
         )
 
-        # Constraints
-        # Note: If market neutral is requested, sum(w) == 1 might be wrong.
-        # Usually market neutral means sum(w) == 0.
-        # Let's adjust based on lambda_market.
-        max_leverage = 2.0
-        if self.lambda_market > 0:
-            constraints = [
-                w >= -self.max_position,
-                w <= self.max_position,
-                cp.norm(w, 1) <= max_leverage,  # Limit gross leverage
-            ]
-        else:
-            constraints = [
-                cp.sum(w) == 1,
-                w >= 0,
-                w <= self.max_position,
-            ]
+        constraints = [w >= -self.max_position, w <= self.max_position]
+        if self.max_turnover < 1.0:
+            constraints.append(cp.norm(w - w_prev, 1) <= self.max_turnover)
 
         prob = cp.Problem(objective, constraints)
         try:
             prob.solve()
         except Exception:
-            # Fallback
             return SimpleOptimizer().optimize(timestamp, forecasts)
 
         if (

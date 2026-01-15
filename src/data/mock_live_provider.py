@@ -2,7 +2,7 @@ import random
 import threading
 import time
 from datetime import datetime
-from typing import Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from ..common.types import Bar
 from .live_provider import LiveDataProvider
@@ -44,6 +44,32 @@ class MockLiveProvider(LiveDataProvider):
         self.running = False
         if self.thread:
             self.thread.join(timeout=1.0)
+
+    def write_bars(self, data: List[Bar]) -> None:
+        pass
+
+    def get_bars(
+        self,
+        internal_ids: List[int],
+        start: datetime,
+        end: datetime,
+        adjustment: str,
+        as_of: Optional[datetime] = None,
+    ) -> List[Bar]:
+        return []
+
+    def get_universe(self, date: datetime) -> List[int]:
+        return self.internal_ids
+
+    def get_returns(
+        self,
+        internal_ids: List[int],
+        start: datetime,
+        end: datetime,
+        type: str = "RAW",
+        as_of: Optional[datetime] = None,
+    ) -> Any:
+        return None
 
     def _create_bar(self, internal_id: int, price: float) -> Bar:
         return {

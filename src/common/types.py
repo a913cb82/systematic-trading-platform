@@ -1,4 +1,5 @@
 from datetime import datetime
+from enum import Enum
 from typing import Any, TypedDict
 
 
@@ -41,3 +42,22 @@ class CorporateAction(TypedDict, total=False):
     pay_date: datetime | None
     ratio: float  # For splits: 2.0 for 2-for-1. For dividends: amount.
     timestamp_knowledge: datetime
+
+
+class OrderStatus(Enum):
+    PENDING_SUBMIT = "PENDING_SUBMIT"
+    SUBMITTED = "SUBMITTED"
+    PARTIALLY_FILLED = "PARTIALLY_FILLED"
+    FILLED = "FILLED"
+    CANCELLED = "CANCELLED"
+    REJECTED = "REJECTED"
+
+
+class Order(TypedDict):
+    order_id: str
+    internal_id: int
+    side: str
+    quantity: float
+    filled_quantity: float
+    status: OrderStatus
+    timestamp: datetime

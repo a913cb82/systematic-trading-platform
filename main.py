@@ -65,10 +65,11 @@ def main():
         mde.write_bars(historical_bars)
 
     # 2. Setup Alpha & Portfolio
-    feature_store = FeatureStore(mde, event_store)
+    # FeatureStore can be used by alpha models if needed
+    FeatureStore(mde, event_store)
     forecast_publisher = ForecastPublisher("data/forecasts.db")
     alpha_model = MeanReversionModel(
-        feature_store, internal_ids, publisher=forecast_publisher
+        mde, internal_ids, publisher=forecast_publisher
     )
 
     risk_model = RollingWindowRiskModel(mde)
@@ -82,7 +83,12 @@ def main():
     algo = ExecutionAlgorithm(mde)
     execution_engine = SimulatedExecutionEngine(algo)
     safety = SafetyLayer()
-    OrderManagementSystem(weight_publisher, execution_engine, safety)
+    OrderManagementSystem(
+        weight_publisher,
+        execution_engine,
+        market_data=mde,
+        safety_layer=safety,
+    )
 
     # 4. Setup Live Ingestion
     live_provider = MockLiveProvider()

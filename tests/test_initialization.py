@@ -4,7 +4,6 @@ import tempfile
 import unittest
 from datetime import datetime, timedelta
 
-from src.alpha.features import FeatureStore
 from src.alpha.model import MeanReversionModel
 from src.alpha.publisher import ForecastPublisher
 from src.data.event_store import EventStore
@@ -44,7 +43,7 @@ class TestInitialization(unittest.TestCase):
         # 1. Setup Infrastructure
         ism = InternalSecurityMaster(self.db_path)
         mde = MarketDataEngine(self.market_path)
-        event_store = EventStore(self.event_path)
+        EventStore(self.event_path)
 
         # Register some securities
         start_date = datetime.now() - timedelta(days=30)
@@ -57,10 +56,9 @@ class TestInitialization(unittest.TestCase):
         internal_ids = [aapl_id, msft_id]
 
         # 2. Setup Alpha & Portfolio
-        feature_store = FeatureStore(mde, event_store)
         forecast_publisher = ForecastPublisher(self.forecast_db)
         alpha_model = MeanReversionModel(
-            feature_store, internal_ids, publisher=forecast_publisher
+            mde, internal_ids, publisher=forecast_publisher
         )
 
         risk_model = RollingWindowRiskModel(mde)
@@ -74,7 +72,12 @@ class TestInitialization(unittest.TestCase):
         algo = ExecutionAlgorithm(mde)
         execution_engine = SimulatedExecutionEngine(algo)
         safety = SafetyLayer()
-        OrderManagementSystem(weight_publisher, execution_engine, safety)
+        OrderManagementSystem(
+            weight_publisher,
+            execution_engine,
+            market_data=mde,
+            safety_layer=safety,
+        )
 
         # 4. Setup Live Ingestion
         live_provider = MockLiveProvider()

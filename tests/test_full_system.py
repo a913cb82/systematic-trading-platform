@@ -66,9 +66,7 @@ class TestFullSystem(unittest.TestCase):
             self.mde.write_bars(bars)
 
         # 2. Setup components
-        alpha_model = MeanReversionModel(
-            self.feature_store, internal_ids=[1, 2]
-        )
+        alpha_model = MeanReversionModel(self.mde, internal_ids=[1, 2])
         risk_model = RollingWindowRiskModel(
             market_data_engine=self.mde, window_days=10
         )

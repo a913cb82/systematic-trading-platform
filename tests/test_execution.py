@@ -26,7 +26,10 @@ class TestExecution(unittest.TestCase):
         self.engine = SimulatedExecutionEngine(algo=self.algo)
         self.safety = SafetyLayer(max_weight=0.5)
         self.oms = OrderManagementSystem(
-            self.publisher, self.engine, self.safety
+            self.publisher,
+            self.engine,
+            market_data=self.mde,
+            safety_layer=self.safety,
         )
 
     def tearDown(self):

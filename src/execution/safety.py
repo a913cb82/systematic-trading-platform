@@ -1,5 +1,9 @@
 from datetime import datetime, timedelta
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
+
+import numpy as np
+
+from ..common.base import MarketDataProvider
 
 
 class SafetyLayer:
@@ -11,11 +15,13 @@ class SafetyLayer:
         price_collar_pct: float = 0.05,
         max_messages_per_second: int = 10,
         max_drawdown_limit: float = -0.02,
+        max_adv_participation: float = 0.01,  # 1% of ADV
     ):
         self.max_weight = max_weight
         self.price_collar_pct = price_collar_pct
         self.max_messages_per_second = max_messages_per_second
         self.max_drawdown_limit = max_drawdown_limit
+        self.max_adv_participation = max_adv_participation
 
         # State
         self.message_timestamps: List[datetime] = []
@@ -57,9 +63,14 @@ class SafetyLayer:
                 f"exceeds limit {self.max_drawdown_limit:.2%}"
             )
 
-    def validate_weights(self, weights: Dict[int, float]) -> Tuple[bool, str]:
+    def validate_weights(
+        self,
+        weights: Dict[int, float],
+        market_data: Optional[MarketDataProvider] = None,
+        capital: float = 1_000_000.0,
+    ) -> Tuple[bool, str]:
         """
-        Validates target weights against safety limits.
+        Validates target weights against safety limits, including ADV.
         """
         if self.is_killed:
             return False, "Kill-switch is active. No further trading allowed."
@@ -78,6 +89,33 @@ class SafetyLayer:
                     f"Weight for {iid} exceeds max_weight "
                     f"{self.max_weight}: {weight}",
                 )
+
+            # ADV Check
+            if market_data:
+                # Use a 30-day window for ADV
+                end_dt = datetime.now()
+                start_dt = end_dt - timedelta(days=30)
+                bars = market_data.get_bars(
+                    [iid], start_dt, end_dt, adjustment="RAW"
+                )
+                if bars:
+                    adv = np.mean([b["volume"] for b in bars])
+                    latest_price = bars[-1]["close"]
+
+                    # Estimate required shares
+                    target_val = weight * capital
+                    target_shares = (
+                        target_val / latest_price if latest_price > 0 else 0
+                    )
+
+                    if abs(target_shares) > adv * self.max_adv_participation:
+                        return (
+                            False,
+                            f"Order for {iid} exceeds ADV limit. "
+                            f"Target shares: {abs(target_shares):.0f}, "
+                            f"ADV: {adv:.0f}, Limit: "
+                            f"{self.max_adv_participation:.1%}",
+                        )
 
         # Check sum of absolute weights (leverage)
         total_leverage = sum(abs(w) for w in weights.values())

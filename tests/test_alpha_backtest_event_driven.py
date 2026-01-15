@@ -65,7 +65,7 @@ class TestEventDrivenBacktester(unittest.TestCase):
         self.market_data.write_bars(bars)
 
         # 2. Setup Model
-        model = MeanReversionModel(self.feature_store, [1, 2])
+        model = MeanReversionModel(self.market_data, [1, 2])
 
         # 3. Setup Backtester
         bt = EventDrivenBacktester(

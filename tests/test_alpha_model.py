@@ -3,7 +3,6 @@ import shutil
 import unittest
 from datetime import datetime
 
-from src.alpha.features import FeatureStore
 from src.alpha.model import MeanReversionModel
 from src.common.types import Bar
 from src.data.event_store import EventStore
@@ -19,10 +18,10 @@ class TestAlphaModel(unittest.TestCase):
         if os.path.exists(self.event_dir):
             shutil.rmtree(self.event_dir)
 
-        self.market_data = MarketDataEngine(self.market_dir)
+        self.mde = MarketDataEngine(self.market_dir)
         self.event_store = EventStore(self.event_dir)
-        self.feature_store = FeatureStore(self.market_data, self.event_store)
-        self.model = MeanReversionModel(self.feature_store, [1])
+        self.internal_ids = [1]
+        self.model = MeanReversionModel(self.mde, self.internal_ids)
 
     def tearDown(self):
         if os.path.exists(self.market_dir):
@@ -54,7 +53,7 @@ class TestAlphaModel(unittest.TestCase):
                 volume=1000.0,
             ),
         ]
-        self.market_data.write_bars(bars)
+        self.mde.write_bars(bars)
 
         forecasts = self.model.generate_forecasts(datetime(2023, 1, 2))
         self.assertIn(1, forecasts)

@@ -1,10 +1,11 @@
 from abc import ABC, abstractmethod
 from typing import Callable, List, Optional
 
+from ..common.base import MarketDataProvider
 from ..common.types import Bar
 
 
-class LiveDataProvider(ABC):
+class LiveDataProvider(MarketDataProvider, ABC):
     @abstractmethod
     def connect(self) -> bool:
         """Establish connection to the live data source."""

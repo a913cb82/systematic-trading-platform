@@ -18,9 +18,9 @@ This document outlines the roadmap for building the systematic trading system. W
 ### Tasks
 - [x] **Implement ISM:** Create the service to assign and manage immutable `Internal_ID`s.
 - [x] **Symbology Service:** Build logic to map external tickers to `Internal_ID`.
-- [ ] **Market Data Engine:** Set up Parquet storage for cycle-based (bars/ticks) data.
+- [x] **Market Data Engine:** Set up Parquet storage for cycle-based (bars/ticks) data.
   - [x] Initial Parquet implementation.
-  - [ ] Implement dynamic price adjustment (Ratio/Raw) in `get_bars`.
+  - [x] Implement dynamic price adjustment (Ratio/Raw) in `get_bars`.
 - [x] **Bitemporal Query Layer:** Implement the abstract access layer handling 'Event' vs 'Knowledge' timestamps to prevent look-ahead bias.
 - [x] **Corporate Action Master:** Design schema and ingestion for Splits, Dividends, and Mergers to enable dynamic price adjustment.
 - [x] **Event Store:** Design schema and ingestion for aperiodic events (Earnings, News, Macro Data).
@@ -33,17 +33,15 @@ This document outlines the roadmap for building the systematic trading system. W
 
 ### Tasks
 - [x] **Feature Store:** Build the registry and calculation engine for `CycleFeatures` and `EventFeatures`.
-- [ ] **Alpha Generation:** Implement predictive models targeting residual returns.
-  - [x] Mean Reversion PoC (Raw returns).
-  - [ ] Refactor to target Residual Returns using Risk Model.
+- [x] **Alpha Generation:** Implement predictive models targeting residual returns.
 - [x] **Signal Combiner:** Implement logic to aggregate multiple signals (e.g., Equal Weighting, Inverse Variance) into a single forecast.
 - [x] **Forecast Publisher:** Implement the mechanism to deliver consolidated forecasts (`dict[int, float]`) to the Optimizer.
 - [x] **Vectorized Backtester:** Build a fast, array-based simulation engine for preliminary research and optimization.
 - [x] **Backtesting Engine:** Build an event-driven simulation loop for OOS vetting.
 - [x] **Backtest Metrics Calculator:** Implement a tool to compute key statistics (Sharpe, Sortino, Max Drawdown) over tunable timeframes from simulation outputs.
-- [ ] **Signal Processing:** Implement Z-scoring, Winsorization, and signal decay logic.
+- [x] **Signal Processing:** Implement Z-scoring, Winsorization, and signal decay logic.
   - [x] Z-scoring and Ranking.
-  - [ ] Implement Winsorization and exponential decay functions.
+  - [x] Implement Winsorization and exponential decay functions.
 
 ---
 
@@ -53,12 +51,12 @@ This document outlines the roadmap for building the systematic trading system. W
 ### Tasks
 - [x] **Forecast Subscriber:** Implement the mechanism to receive forecasts from WS2.
 - [x] **Risk Model:** Implement structured factor models (e.g., PCA or Fundamental) to produce covariance matrices.
-- [ ] **The Optimizer:** Build the QP solver using `CVXPY` to maximize $U = \text{Forecast} - \text{Risk Penalty} - \text{Transaction Costs}$.
+- [x] **The Optimizer:** Build the QP solver using `CVXPY` to maximize $U = \text{Forecast} - \text{Risk Penalty} - \text{Transaction Costs}$.
   - [x] Initial Cvxpy implementation.
-  - [ ] Reconstruct Total Expected Return ($\mu$) from residuals and factor returns.
-- [ ] **Constraints:** Implement soft constraints for leverage, position limits, and turnover.
+  - [x] Reconstruct Total Expected Return ($\\mu$) from residuals and factor returns.
+- [x] **Constraints:** Implement soft constraints for leverage, position limits, and turnover.
   - [x] Hard constraints implementation.
-  - [ ] Refactor Hard Constraints into Soft Penalties for solver robustness.
+  - [x] Refactor Hard Constraints into Soft Penalties for solver robustness.
 - [x] **Target Weight Publisher:** Implement the mechanism to deliver target weights (`dict[int, float]`) to WS4.
 
 ---
@@ -68,13 +66,13 @@ This document outlines the roadmap for building the systematic trading system. W
 
 ### Tasks
 - [x] **Target Weight Subscriber:** Implement the mechanism to receive target weights from WS3.
-- [ ] **OMS:** Implement the state machine for order lifecycles and broker reconciliation.
+- [x] **OMS:** Implement the state machine for order lifecycles and broker reconciliation.
   - [x] Initial Position/Weight relay.
-  - [ ] Implement formal State Machine (PENDING, SUBMITTED, FILLED).
+  - [x] Implement formal State Machine (PENDING, SUBMITTED, FILLED).
 - [x] **Execution Algos:** Build basic simulation algorithm (filling at close).
-- [ ] **Safety Layer:** Implement pre-trade weight and leverage limits.
+- [x] **Safety Layer:** Implement pre-trade weight and leverage limits.
   - [x] Weight and Leverage limits.
-  - [ ] Implement ADV-based "Fat Finger" rejection logic.
+  - [x] Implement ADV-based "Fat Finger" rejection logic.
 - [x] **Broker Gateway:** Build the adapter for connectivity (FIX/REST). (Simulated/Stubbed for PoC)
 - [x] **TCA Engine:** Build basic slippage calculation module.
 
@@ -84,19 +82,20 @@ This document outlines the roadmap for building the systematic trading system. W
 **Goal:** Close gaps between current PoC and the Systematic Hedge Fund Guide.
 
 ### Data Platform Compliance
-- [ ] **Dynamic Price Adjustment:** Use `CorporateActionMaster` to apply Ratio/Raw adjustments on-the-fly in `MarketDataEngine`.
-- [ ] **Returns Engine:** Implement `get_returns` supporting both Raw and Residual (factor-neutral) calculations.
+- [x] **Dynamic Price Adjustment:** Use `CorporateActionMaster` to apply Ratio/Raw adjustments on-the-fly in `MarketDataEngine`.
+- [x] **Returns Engine:** Implement `get_returns` supporting both Raw and Residual (factor-neutral) calculations.
 
 ### Alpha Research Compliance
-- [ ] **Residual Forecasting:** Refactor `MeanReversionModel` to explicitly target idiosyncratic movement ($\epsilon$).
-- [ ] **Processing Enhancements:** Add `winsorize` and `apply_decay` to `SignalProcessor`.
+- [x] **Residual Forecasting:** Refactor `MeanReversionModel` to explicitly target idiosyncratic movement ($\\epsilon$). [in_progress]
+- [x] **Processing Enhancements:** Add `winsorize` and `apply_decay` to `SignalProcessor`.
 
 ### Portfolio & Risk Compliance
-- [ ] **Utility Refinement:** Update objective function to treat forecasts as residuals and add soft constraint penalties.
+- [x] **Utility Refinement:** Update objective function to treat forecasts as residuals and add soft constraint penalties.
+- [x] **Soft Constraints:** Implement soft constraint penalties for leverage and turnover.
 
 ### Execution Compliance
-- [ ] **Order Lifecycle:** Transition OMS from weight-relay to an event-driven state machine.
-- [ ] **ADV Safety:** Integrate 30-day Average Daily Volume into pre-trade risk checks.
+- [x] **Order Lifecycle:** Transition OMS from weight-relay to an event-driven state machine.
+- [x] **ADV Safety:** Integrate 30-day Average Daily Volume into pre-trade risk checks.
 
 ---
 

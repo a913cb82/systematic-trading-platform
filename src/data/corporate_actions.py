@@ -54,13 +54,13 @@ class CorporateActionMaster:
                         action["type"],
                         action["ex_date"].strftime("%Y-%m-%d"),
                         (
-                            action["record_date"].strftime("%Y-%m-%d")
-                            if action["record_date"]
+                            action.get("record_date").strftime("%Y-%m-%d")  # type: ignore
+                            if action.get("record_date")
                             else None
                         ),
                         (
-                            action["pay_date"].strftime("%Y-%m-%d")
-                            if action["pay_date"]
+                            action.get("pay_date").strftime("%Y-%m-%d")  # type: ignore
+                            if action.get("pay_date")
                             else None
                         ),
                         action["ratio"],
