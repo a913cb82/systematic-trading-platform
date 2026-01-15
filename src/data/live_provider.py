@@ -3,6 +3,7 @@ from typing import List, Callable, Optional
 from datetime import datetime
 from ..common.types import Bar
 
+
 class LiveDataProvider(ABC):
     @abstractmethod
     def connect(self) -> bool:
@@ -10,7 +11,9 @@ class LiveDataProvider(ABC):
         pass
 
     @abstractmethod
-    def subscribe_bars(self, internal_ids: List[int], callback: Callable[[Bar], None]) -> None:
+    def subscribe_bars(
+        self, internal_ids: List[int], callback: Callable[[Bar], None]
+    ) -> None:
         """Subscribe to real-time bars for a list of internal IDs."""
         pass
 

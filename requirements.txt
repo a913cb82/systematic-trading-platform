@@ -7,3 +7,5 @@ pytest
 PyYAML
 python-dotenv
 scikit-learn
+black
+pre-commit

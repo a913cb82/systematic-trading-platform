@@ -11,6 +11,7 @@ from .common.types import Bar
 
 logger = logging.getLogger(__name__)
 
+
 class LiveRunner:
     def __init__(
         self,
@@ -18,7 +19,7 @@ class LiveRunner:
         market_data_engine: MarketDataEngine,
         alpha_model: AlphaModel,
         portfolio_manager: PortfolioManager,
-        internal_ids: List[int]
+        internal_ids: List[int],
     ):
         self.live_provider = live_provider
         self.market_data_engine = market_data_engine
@@ -33,10 +34,12 @@ class LiveRunner:
         """
         logger.info("Starting Live Runner...")
         self.running = True
-        
+
         # 1. Connect to live data
         if not self.live_provider.connect():
-            monitor.alert("CRITICAL", "Failed to connect to Live Data Provider")
+            monitor.alert(
+                "CRITICAL", "Failed to connect to Live Data Provider"
+            )
             return
 
         # 2. Subscribe to bars
@@ -45,7 +48,7 @@ class LiveRunner:
         # b) The MarketDataEngine notifies its subscribers (which could be features)
         # c) We trigger the Alpha/Portfolio pipeline
         self.live_provider.subscribe_bars(self.internal_ids, self._on_live_bar)
-        
+
         monitor.heartbeat("LiveRunner")
         logger.info(f"Live Runner active for IDs: {self.internal_ids}")
 
@@ -62,20 +65,24 @@ class LiveRunner:
         """
         Core callback for live data ingestion.
         """
-        logger.debug(f"Received live bar for {bar['internal_id']} at {bar['timestamp']}")
-        
+        logger.debug(
+            f"Received live bar for {bar['internal_id']} at {bar['timestamp']}"
+        )
+
         # 1. Persist to Market Data Engine
         # This allows bitemporal queries to work for the Alpha model immediately
         self.market_data_engine.write_bars([bar])
-        
+
         # 2. Trigger Alpha Generation
         # The alpha model will generate forecasts and publish them (if configured)
-        timestamp = bar['timestamp']
-        
+        timestamp = bar["timestamp"]
+
         try:
             self.alpha_model.generate_forecasts(timestamp)
         except Exception as e:
-            monitor.alert("ERROR", f"Failed to process live bar: {e}", {"bar": bar})
+            monitor.alert(
+                "ERROR", f"Failed to process live bar: {e}", {"bar": bar}
+            )
 
     def stop(self):
         logger.info("Stopping Live Runner...")

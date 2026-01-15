@@ -1,6 +1,7 @@
 import numpy as np
 from typing import Dict
 
+
 class SignalProcessor:
     @staticmethod
     def z_score(forecasts: Dict[int, float]) -> Dict[int, float]:
@@ -14,5 +15,7 @@ class SignalProcessor:
         return {k: (v - mean) / std for k, v in forecasts.items()}
 
     @staticmethod
-    def winsorize(forecasts: Dict[int, float], limit: float = 3.0) -> Dict[int, float]:
+    def winsorize(
+        forecasts: Dict[int, float], limit: float = 3.0
+    ) -> Dict[int, float]:
         return {k: max(min(v, limit), -limit) for k, v in forecasts.items()}

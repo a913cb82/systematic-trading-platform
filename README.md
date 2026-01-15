@@ -58,3 +58,19 @@ source .venv/bin/activate
 python main.py
 ```
 This will initialize a mock live provider and run the end-to-end pipeline in real-time.
+
+## Formatting & Linting
+The project uses `black` for autoformatting, enforcing a 79-character line length.
+A `pre-commit` hook is configured to ensure all code is formatted before committing.
+
+To run formatting manually:
+```bash
+source .venv/bin/activate
+black .
+```
+
+To install pre-commit hooks (if not already done):
+```bash
+source .venv/bin/activate
+pre-commit install
+```

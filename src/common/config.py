@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 # Load environment variables from .env file if it exists
 load_dotenv()
 
+
 class Config:
     _instance = None
     _config: Dict[str, Any] = {}
@@ -39,7 +40,7 @@ class Config:
             return env_val
 
         # 2. Check config dict
-        keys = key.split('.')
+        keys = key.split(".")
         val = self._config
         for k in keys:
             if isinstance(val, dict) and k in val:
@@ -47,6 +48,7 @@ class Config:
             else:
                 return default
         return val
+
 
 # Global config instance
 config = Config()

@@ -6,10 +6,12 @@ from typing import List, Callable, Optional, Dict
 from .live_provider import LiveDataProvider
 from ..common.types import Bar
 
+
 class MockLiveProvider(LiveDataProvider):
     """
     Simulates a live data provider by generating random price movements.
     """
+
     def __init__(self):
         self.internal_ids: List[int] = []
         self.callbacks: List[Callable[[Bar], None]] = []
@@ -23,10 +25,12 @@ class MockLiveProvider(LiveDataProvider):
         self.thread.start()
         return True
 
-    def subscribe_bars(self, internal_ids: List[int], callback: Callable[[Bar], None]) -> None:
+    def subscribe_bars(
+        self, internal_ids: List[int], callback: Callable[[Bar], None]
+    ) -> None:
         self.internal_ids.extend(internal_ids)
         self.callbacks.append(callback)
-        
+
         # Initialize last_bars with some starting price
         for iid in internal_ids:
             if iid not in self.last_bars:
@@ -51,18 +55,20 @@ class MockLiveProvider(LiveDataProvider):
             "close": price,
             "volume": random.uniform(1000, 5000),
             "buy_volume": random.uniform(500, 2500),
-            "sell_volume": random.uniform(500, 2500)
+            "sell_volume": random.uniform(500, 2500),
         }
 
     def _generate_data(self):
         while self.running:
-            time.sleep(1.0) # Generate data every second
+            time.sleep(1.0)  # Generate data every second
             for iid in self.internal_ids:
                 last_bar = self.last_bars[iid]
                 # Random walk
-                new_price = last_bar['close'] * (1 + random.uniform(-0.001, 0.001))
+                new_price = last_bar["close"] * (
+                    1 + random.uniform(-0.001, 0.001)
+                )
                 new_bar = self._create_bar(iid, new_price)
                 self.last_bars[iid] = new_bar
-                
+
                 for callback in self.callbacks:
                     callback(new_bar)

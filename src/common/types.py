@@ -1,6 +1,7 @@
 from typing import TypedDict, Any
 from datetime import datetime
 
+
 class Bar(TypedDict):
     internal_id: int
     timestamp: datetime
@@ -13,6 +14,7 @@ class Bar(TypedDict):
     buy_volume: float
     sell_volume: float
 
+
 class Trade(TypedDict):
     internal_id: int
     side: str  # 'BUY' | 'SELL'
@@ -22,12 +24,14 @@ class Trade(TypedDict):
     venue: str
     timestamp: datetime
 
+
 class Event(TypedDict):
     internal_id: int
     type: str
     value: Any
     timestamp_event: datetime
     timestamp_knowledge: datetime
+
 
 class CorporateAction(TypedDict):
     internal_id: int

@@ -5,13 +5,16 @@ from ..common.types import Trade
 
 from .algos import ExecutionAlgorithm
 
+
 class SimulatedExecutionEngine(ExecutionEngine):
     def __init__(self, algo: ExecutionAlgorithm):
         self.algo = algo
         self.trades: List[Trade] = []
         self._subscribers: List[Callable[[Trade], None]] = []
 
-    def execute(self, timestamp: datetime, target_weights: Dict[int, float]) -> None:
+    def execute(
+        self, timestamp: datetime, target_weights: Dict[int, float]
+    ) -> None:
         """
         Simulate execution using the provided algorithm.
         """
@@ -24,10 +27,11 @@ class SimulatedExecutionEngine(ExecutionEngine):
         for callback in self._subscribers:
             callback(fill)
 
-    def get_fills(self, start_time: datetime, end_time: datetime) -> List[Trade]:
+    def get_fills(
+        self, start_time: datetime, end_time: datetime
+    ) -> List[Trade]:
         return [
-            t for t in self.trades 
-            if start_time <= t['timestamp'] <= end_time
+            t for t in self.trades if start_time <= t["timestamp"] <= end_time
         ]
 
     def subscribe_fills(self, on_fill: Callable[[Trade], None]) -> None:

@@ -6,6 +6,7 @@ from .utils import setup_logging
 
 logger = setup_logging()
 
+
 class Monitor:
     def __init__(self):
         self.heartbeats: Dict[str, datetime] = {}
@@ -18,7 +19,12 @@ class Monitor:
         self.heartbeats[component_name] = datetime.now()
         logger.debug(f"Heartbeat received from {component_name}")
 
-    def alert(self, level: str, message: str, metadata: Optional[Dict[str, Any]] = None):
+    def alert(
+        self,
+        level: str,
+        message: str,
+        metadata: Optional[Dict[str, Any]] = None,
+    ):
         """
         Logs an alert and stores it.
         """
@@ -26,10 +32,10 @@ class Monitor:
             "timestamp": datetime.now(),
             "level": level,
             "message": message,
-            "metadata": metadata or {}
+            "metadata": metadata or {},
         }
         self.alerts.append(alert_entry)
-        
+
         log_msg = f"ALERT [{level}]: {message} | Metadata: {metadata}"
         if level.upper() == "CRITICAL":
             logger.critical(log_msg)
@@ -46,9 +52,14 @@ class Monitor:
         healthy = True
         for component, last_ts in self.heartbeats.items():
             if (now - last_ts).total_seconds() > timeout_seconds:
-                self.alert("ERROR", f"Component {component} heartbeat timeout", {"last_seen": last_ts})
+                self.alert(
+                    "ERROR",
+                    f"Component {component} heartbeat timeout",
+                    {"last_seen": last_ts},
+                )
                 healthy = False
         return healthy
+
 
 # Global monitor instance
 monitor = Monitor()
