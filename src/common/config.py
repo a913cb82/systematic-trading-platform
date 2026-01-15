@@ -26,13 +26,22 @@ class PortfolioConfig:
 
 
 @dataclass
+class AlpacaConfig:
+    key: str = ""
+    secret: str = ""
+    paper: bool = True
+
+
+@dataclass
 class ExecutionConfig:
+    provider: str = "mock"  # "mock" or "alpaca"
     simulated: bool = True
     transaction_cost_bps: float = 5.0
     max_weight: float = 0.2
     max_messages_per_second: int = 10
     max_drawdown_limit: float = -0.02
     max_adv_participation: float = 0.01
+    alpaca: AlpacaConfig = field(default_factory=AlpacaConfig)
 
 
 @dataclass
@@ -49,11 +58,13 @@ class AppConfig:
             with open(config_path, "r") as f:
                 raw_config = yaml.safe_load(f) or {}
 
-        # Manual overrides from env vars (matching old Config logic)
+        # Manual overrides from env vars
         def _get_env_or_raw(section: str, key: str, default: Any) -> Any:
             env_key = f"TRADING_SYSTEM_{section.upper()}_{key.upper()}"
             env_val = os.getenv(env_key)
             if env_val is not None:
+                if isinstance(default, bool):
+                    return env_val.lower() in ("true", "1", "yes")
                 return env_val
             return raw_config.get(section, {}).get(key, default)
 
@@ -69,8 +80,44 @@ class AppConfig:
                 "data", "target_weights_db", "data/target_weights.db"
             ),
         )
-        portfolio = PortfolioConfig(**raw_config.get("portfolio", {}))
-        execution = ExecutionConfig(**raw_config.get("execution", {}))
+
+        portfolio_raw = raw_config.get("portfolio", {})
+        portfolio = PortfolioConfig(**portfolio_raw)
+
+        execution_raw = raw_config.get("execution", {})
+        alpaca_raw = execution_raw.get("alpaca", {})
+        alpaca = AlpacaConfig(
+            key=_get_env_or_raw(
+                "execution", "alpaca_key", alpaca_raw.get("key", "")
+            ),
+            secret=_get_env_or_raw(
+                "execution", "alpaca_secret", alpaca_raw.get("secret", "")
+            ),
+            paper=_get_env_or_raw(
+                "execution", "alpaca_paper", alpaca_raw.get("paper", True)
+            ),
+        )
+
+        execution = ExecutionConfig(
+            provider=_get_env_or_raw(
+                "execution", "provider", execution_raw.get("provider", "mock")
+            ),
+            simulated=_get_env_or_raw(
+                "execution", "simulated", execution_raw.get("simulated", True)
+            ),
+            transaction_cost_bps=execution_raw.get(
+                "transaction_cost_bps", 5.0
+            ),
+            max_weight=execution_raw.get("max_weight", 0.2),
+            max_messages_per_second=execution_raw.get(
+                "max_messages_per_second", 10
+            ),
+            max_drawdown_limit=execution_raw.get("max_drawdown_limit", -0.02),
+            max_adv_participation=execution_raw.get(
+                "max_adv_participation", 0.01
+            ),
+            alpaca=alpaca,
+        )
 
         return cls(data=data, portfolio=portfolio, execution=execution)
 

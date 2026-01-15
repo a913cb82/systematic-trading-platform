@@ -1,17 +1,21 @@
 import logging
 from datetime import datetime, timedelta
-from typing import List, cast
 
 from src.alpha.features import FeatureStore
 from src.alpha.model import MeanReversionModel
 from src.alpha.publisher import ForecastPublisher
-from src.common.types import Bar
+from src.common.base import ExecutionEngine
+from src.common.config import config
 from src.common.utils import setup_logging
+from src.data.alpaca_provider import AlpacaLiveProvider
 from src.data.event_store import EventStore
 from src.data.ism import InternalSecurityMaster
+from src.data.live_provider import LiveDataProvider
 from src.data.market_data import MarketDataEngine
 from src.data.mock_live_provider import MockLiveProvider
 from src.execution.algos import ExecutionAlgorithm
+from src.execution.alpaca_engine import AlpacaExecutionEngine
+from src.execution.alpaca_gateway import AlpacaBrokerGateway
 from src.execution.engine import SimulatedExecutionEngine
 from src.execution.oms import OrderManagementSystem
 from src.execution.safety import SafetyLayer
@@ -27,11 +31,11 @@ def main() -> None:
     logger = logging.getLogger("main")
 
     # 1. Setup Infrastructure
-    ism = InternalSecurityMaster("data/trading_system.db")
-    mde = MarketDataEngine("data/market")
-    event_store = EventStore("data/event")
+    ism = InternalSecurityMaster(config.data.ism_db)
+    mde = MarketDataEngine(config.data.market_path)
+    event_store = EventStore(config.data.event_path)
 
-    # Register some securities
+    # Register some securities (Example)
     start_date = datetime.now() - timedelta(days=30)
     aapl_id = ism.register_security(
         "AAPL", "NASDAQ", start_date, sector="Technology"
@@ -41,47 +45,35 @@ def main() -> None:
     )
     internal_ids = [aapl_id, msft_id]
 
-    # Pre-populate some historical data for the models to work
-    logger.info("Pre-populating historical data...")
-    for iid, price in [(aapl_id, 150.0), (msft_id, 250.0)]:
-        historical_bars = cast(
-            List[Bar],
-            [
-                {
-                    "internal_id": iid,
-                    "timestamp": start_date + timedelta(days=i),
-                    "timestamp_knowledge": start_date + timedelta(days=i),
-                    "open": price + (i * 0.5),
-                    "high": price + (i * 0.5) + 1,
-                    "low": price + (i * 0.5) - 1,
-                    "close": price + (i * 0.5),
-                    "volume": 1000,
-                    "buy_volume": 500,
-                    "sell_volume": 500,
-                }
-                for i in range(20)
-            ],
-        )
-        mde.write_bars(historical_bars)
-
     # 2. Setup Alpha & Portfolio
-    # FeatureStore can be used by alpha models if needed
     FeatureStore(mde, event_store)
-    forecast_publisher = ForecastPublisher("data/forecasts.db")
+    forecast_publisher = ForecastPublisher(config.data.forecast_db)
     alpha_model = MeanReversionModel(
         mde, internal_ids, publisher=forecast_publisher
     )
 
     risk_model = RollingWindowRiskModel(mde)
     optimizer = CvxpyOptimizer(risk_model)
-    weight_publisher = TargetWeightPublisher("data/target_weights.db")
+    weight_publisher = TargetWeightPublisher(config.data.target_weights_db)
     portfolio_manager = PortfolioManager(
         forecast_publisher, optimizer, weight_publisher
     )
 
-    # 3. Setup Execution
-    algo = ExecutionAlgorithm(mde)
-    execution_engine = SimulatedExecutionEngine(algo)
+    # 3. Setup Execution & Live Provider based on config
+    execution_engine: ExecutionEngine
+    live_provider: LiveDataProvider
+
+    if config.execution.provider == "alpaca":
+        logger.info("Using Alpaca provider")
+        gateway = AlpacaBrokerGateway(ism)
+        execution_engine = AlpacaExecutionEngine(gateway, mde)
+        live_provider = AlpacaLiveProvider(ism)
+    else:
+        logger.info("Using Mock provider")
+        algo = ExecutionAlgorithm(mde)
+        execution_engine = SimulatedExecutionEngine(algo)
+        live_provider = MockLiveProvider()
+
     safety = SafetyLayer()
     OrderManagementSystem(
         weight_publisher,
@@ -90,10 +82,7 @@ def main() -> None:
         safety_layer=safety,
     )
 
-    # 4. Setup Live Ingestion
-    live_provider = MockLiveProvider()
-
-    # 5. Start Runner
+    # 4. Start Runner
     runner = LiveRunner(
         live_provider, mde, alpha_model, portfolio_manager, internal_ids
     )

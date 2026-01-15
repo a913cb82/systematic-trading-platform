@@ -191,6 +191,28 @@ class InternalSecurityMaster:
             result = cursor.fetchone()
             return result[0] if result else None
 
+    def get_internal_id_by_ticker(
+        self,
+        ticker: str,
+        date: datetime,
+        as_of: Optional[datetime] = None,
+    ) -> Optional[int]:
+        date_str = date.strftime("%Y-%m-%d")
+        as_of_str = (as_of or datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.execute(
+                """
+                SELECT internal_id FROM ism_mapping
+                WHERE ticker = ?
+                AND start_date <= ? AND (end_date > ? OR end_date IS NULL)
+                AND timestamp_knowledge <= ?
+                ORDER BY timestamp_knowledge DESC LIMIT 1
+            """,
+                (ticker, date_str, date_str, as_of_str),
+            )
+            result = cursor.fetchone()
+            return result[0] if result else None
+
     def get_internal_id_by_external(
         self,
         id_type: str,

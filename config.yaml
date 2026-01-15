@@ -11,5 +11,10 @@ portfolio:
   max_turnover: 1.0
 
 execution:
+  provider: "mock" # "mock" or "alpaca"
   simulated: true
   transaction_cost_bps: 5.0
+  alpaca:
+    key: "YOUR_ALPACA_KEY"
+    secret: "YOUR_ALPACA_SECRET"
+    paper: true
