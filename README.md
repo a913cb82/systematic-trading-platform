@@ -36,19 +36,45 @@ Manages the lifecycle of orders and market connectivity.
 
 ## Development
 
+### Setup
+The project manages dependencies via `pyproject.toml`.
+
+```bash
+# Create and activate virtual environment
+python -m venv .venv
+source .venv/bin/activate
+
+# Install dependencies including dev tools
+pip install -e ".[dev]"
+
+# Install pre-commit hooks
+pre-commit install
+```
+
 ### Running Tests
 The project uses `pytest` to run tests. Some tests are written using the standard `unittest` library but are compatible with `pytest`.
 
-To run all tests:
 ```bash
 source .venv/bin/activate
 pytest
 ```
 
-To run a specific test file:
+## Code Quality
+We use **Ruff** for linting and formatting, and **Mypy** for static type checking. Both are configured to match the project's 79-character line length standard.
+
+### Linting & Formatting
+To run Ruff (checks and auto-formatting):
 ```bash
 source .venv/bin/activate
-pytest tests/test_portfolio_manager.py
+ruff check . --fix  # Linting
+ruff format .       # Formatting
+```
+
+### Type Checking
+To run Mypy:
+```bash
+source .venv/bin/activate
+mypy .
 ```
 
 ## Quick Start (Live Simulation)
@@ -58,19 +84,3 @@ source .venv/bin/activate
 python main.py
 ```
 This will initialize a mock live provider and run the end-to-end pipeline in real-time.
-
-## Formatting & Linting
-The project uses `black` for autoformatting, enforcing a 79-character line length.
-A `pre-commit` hook is configured to ensure all code is formatted before committing.
-
-To run formatting manually:
-```bash
-source .venv/bin/activate
-black .
-```
-
-To install pre-commit hooks (if not already done):
-```bash
-source .venv/bin/activate
-pre-commit install
-```

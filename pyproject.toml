@@ -1,3 +1,34 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "trading_system"
+version = "0.1.0"
+description = "A systematic hedge fund architecture project"
+authors = [
+    { name = "Alex B" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "pandas",
+    "pyarrow",
+    "numpy",
+    "cvxpy",
+    "scipy",
+    "PyYAML",
+    "python-dotenv",
+    "scikit-learn",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "ruff",
+    "mypy",
+    "pre-commit",
+]
+
 [tool.ruff]
 line-length = 79
 target-version = "py310"
