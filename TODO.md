@@ -76,6 +76,15 @@ This document outlines the roadmap for building the systematic trading system. W
 - [x] **Broker Gateway:** Build the adapter for connectivity (FIX/REST). (Simulated/Stubbed for PoC)
 - [x] **TCA Engine:** Build basic slippage calculation module.
 
+### Alpaca Production Path
+- [ ] **Alpaca Broker Gateway:** Implement real order execution using Alpaca's `TradingClient`.
+  - [ ] Support for Market and Limit orders.
+  - [ ] Implementation of `get_positions` to sync real-world state.
+- [ ] **Environment Management:** Add explicit `PAPER` vs `LIVE` toggle in `config.yaml` to switch Alpaca API endpoints.
+- [ ] **Weight-to-Order Conversion:** Build a robust `OrderGenerator` that converts Portfolio Targets to share quantities, accounting for current broker positions and lot sizes.
+- [ ] **Streaming Infrastructure:** Upgrade `AlpacaLiveProvider` from polling to WebSockets (`StockDataStream`) for low-latency live bar updates.
+- [ ] **Alpaca Bulk Ingestor:** Implement a utility to "prime" the local Parquet store by bulk-downloading historical data via Alpaca's `StockHistoricalDataClient`.
+
 ---
 
 ## Phase 1.5: Architectural Alignment & Compliance
@@ -123,6 +132,7 @@ This document outlines the roadmap for building the systematic trading system. W
 ### Extensibility & DX
 - [x] **Feature Registry:** Implement decorator-based registry (`@register_feature`) to allow extensibility without editing core `FeatureStore`.
 - [x] **Simplified Alpha API:** Implement a high-level wrapper so users only need to implement `on_cycle(self, datetime, modelstate)`.
+- [ ] **Config-driven selection:** Ensure providers (Alpaca vs Mock) can be swapped purely via `config.yaml` settings.
 - [x] **Standardized Model State:** Define a robust `ModelState` (OHLCV + Positions + Features) to pass to models.
 - [x] **Residual returns usage:** Ensure `get_returns` (RESIDUAL) is used throughout the demo model code.
 
