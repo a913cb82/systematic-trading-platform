@@ -98,8 +98,11 @@ class FeatureStore:
 
 
 @register_cycle_feature("returns_1d")
-def calc_returns_1d(df: pd.DataFrame) -> pd.Series:
-    return cast(pd.Series, df.groupby("internal_id")["close"].pct_change())
+def compute_returns(df: pd.DataFrame) -> pd.Series:
+    return cast(
+        pd.Series,
+        df.groupby("internal_id")["close"].pct_change(fill_method=None),
+    )
 
 
 @register_cycle_feature("sma_5")

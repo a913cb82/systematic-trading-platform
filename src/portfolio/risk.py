@@ -95,7 +95,7 @@ class PCARiskModel(RiskModel):
         pivot_df = df.pivot(
             index="timestamp", columns="internal_id", values="close"
         )
-        returns_df = pivot_df.pct_change().dropna()
+        returns_df = pivot_df.pct_change(fill_method=None).dropna()
 
         if returns_df.empty or len(returns_df) < self.n_factors:
             return cast(List[List[float]], np.eye(len(internal_ids)).tolist())
@@ -217,10 +217,12 @@ class RollingWindowRiskModel(RiskModel):
         pivot_df = df.pivot(
             index="timestamp", columns="internal_id", values="close"
         )
-        returns_df = pivot_df.pct_change().dropna()
+        returns_df = pivot_df.pct_change(fill_method=None).dropna()
 
-        if returns_df.empty:
-            return cast(List[List[float]], np.eye(len(internal_ids)).tolist())
+        if len(returns_df) <= 1:
+            return cast(
+                List[List[float]], (np.eye(len(internal_ids)) * 0.01).tolist()
+            )
 
         # Ensure all internal_ids are present
         for iid in internal_ids:

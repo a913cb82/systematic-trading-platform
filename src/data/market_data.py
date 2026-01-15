@@ -307,7 +307,7 @@ class MarketDataEngine(MarketDataProvider):
 
         df = pd.DataFrame(bars)
         df = df.pivot(index="timestamp", columns="internal_id", values="close")
-        returns = df.pct_change().dropna(how="all")
+        returns = df.pct_change(fill_method=None).dropna(how="all")
 
         if type == "RAW":
             return returns

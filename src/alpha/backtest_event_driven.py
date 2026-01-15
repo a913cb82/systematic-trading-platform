@@ -142,7 +142,10 @@ class EventDrivenBacktester:
         if df.empty or len(df) < min_required_bars:
             return {}
 
-        df["returns"] = df["equity"].pct_change().fillna(0)
+        df = pd.DataFrame(self.equity_curve)
+        df["returns"] = df["equity"].pct_change(fill_method=None).fillna(0)
+
+        sharpe = 0.0
 
         daily_pnl = df["returns"]
         std = daily_pnl.std()
