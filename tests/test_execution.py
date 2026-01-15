@@ -1,81 +1,47 @@
-import os
-import shutil
-import tempfile
 import unittest
-from datetime import datetime
-from typing import List, cast
+from unittest.mock import MagicMock
 
-from src.common.types import Bar
-from src.data.market_data import MarketDataEngine
-from src.execution.algos import ExecutionAlgorithm
-from src.execution.engine import SimulatedExecutionEngine
-from src.execution.oms import OrderManagementSystem
-from src.execution.safety import SafetyLayer
-from src.portfolio.publisher import TargetWeightPublisher
+from src.execution_handler import ExecutionHandler
 
 
-class TestExecution(unittest.TestCase):
-    def setUp(self) -> None:
-        self.tmp_dir = tempfile.mkdtemp()
-        self.db_path = os.path.join(self.tmp_dir, "weights.db")
-        self.market_path = os.path.join(self.tmp_dir, "market")
+class TestExecutionHandler(unittest.TestCase):
+    def test_rebalance_basic(self) -> None:
+        backend = MagicMock()
+        backend.get_positions.return_value = {"AAPL": 10.0}
+        backend.get_prices.return_value = {"AAPL": 100.0}
 
-        self.publisher = TargetWeightPublisher(db_path=self.db_path)
-        self.mde = MarketDataEngine(base_path=self.market_path)
-        self.algo = ExecutionAlgorithm(market_data_engine=self.mde)
-        self.engine = SimulatedExecutionEngine(algo=self.algo)
-        self.safety = SafetyLayer(max_weight=0.5)
-        self.oms = OrderManagementSystem(
-            self.publisher,
-            self.engine,
-            market_data=self.mde,
-            safety_layer=self.safety,
-        )
+        handler = ExecutionHandler(backend)
+        # 50% of 10000 = 5000 / 100 = 50 shares. Diff = +40
+        target_weights = {1001: 0.5}
+        reverse_ism = {1001: "AAPL"}
 
-    def tearDown(self) -> None:
-        shutil.rmtree(self.tmp_dir)
+        handler.rebalance(target_weights, reverse_ism, 10000.0)
+        backend.submit_order.assert_called_with("AAPL", 40.0, "BUY")
 
-    def test_oms_execution_flow(self) -> None:
-        timestamp = datetime(2023, 1, 1, 10, 0)
+    def test_rebalance_multi_asset(self) -> None:
+        backend = MagicMock()
+        backend.get_positions.return_value = {"AAPL": 100.0, "MSFT": 50.0}
+        backend.get_prices.return_value = {"AAPL": 100.0, "MSFT": 200.0}
 
-        # Mock market data for the algo to find a price
-        bars = cast(
-            List[Bar],
-            [
-                {
-                    "internal_id": 1,
-                    "timestamp": timestamp,
-                    "close": 150.0,
-                    "open": 150.0,
-                    "high": 151.0,
-                    "low": 149.0,
-                    "volume": 10000.0,
-                }
-            ],
-        )
-        self.mde.write_bars(bars)
+        handler = ExecutionHandler(backend)
+        # Target: AAPL 100 shares (no change), MSFT 60 shares (+10)
+        # Capital 22000.
+        target_weights = {1001: 0.454545, 1002: 0.545454}
+        reverse_ism = {1001: "AAPL", 1002: "MSFT"}
 
-        # Publisher submits target weights -> OMS should pick it up ->
-        # Engine should execute
-        weights = {1: 0.1}
-        self.publisher.submit_target_weights(timestamp, weights)
+        handler.rebalance(target_weights, reverse_ism, 22000.0)
 
-        # Verify engine received and processed trades
-        fills = self.engine.get_fills(timestamp, timestamp)
-        self.assertEqual(len(fills), 1)
-        self.assertEqual(fills[0]["internal_id"], 1)
-        self.assertEqual(fills[0]["price"], 150.0)
+        # Should only call submit_order for MSFT
+        backend.submit_order.assert_called_once()
+        args, _ = backend.submit_order.call_args
+        self.assertEqual(args[0], "MSFT")
+        self.assertAlmostEqual(args[1], 10.0, places=2)
 
-    def test_safety_check_rejection(self) -> None:
-        timestamp = datetime(2023, 1, 1, 10, 0)
-
-        # Submit weight exceeding safety limit (max_weight=0.5)
-        weights = {1: 0.6}
-        self.publisher.submit_target_weights(timestamp, weights)
-
-        # Verify no trades were executed
-        fills = self.engine.get_fills(timestamp, timestamp)
-        self.assertEqual(len(fills), 0)
+    def test_execute_direct(self) -> None:
+        backend = MagicMock()
+        handler = ExecutionHandler(backend)
+        handler.execute_direct("AAPL", 10, "SELL")
+        backend.submit_order.assert_called_with("AAPL", 10, "SELL")
 
 
 if __name__ == "__main__":

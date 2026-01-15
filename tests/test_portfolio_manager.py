@@ -1,77 +1,44 @@
-import os
-import shutil
-import tempfile
 import unittest
-from datetime import datetime
-from typing import List, cast
+from datetime import datetime, timedelta
+from unittest.mock import patch
 
-from src.alpha.publisher import ForecastPublisher
-from src.common.types import Bar
-from src.data.market_data import MarketDataEngine
-from src.portfolio.manager import PortfolioManager
-from src.portfolio.optimizer import CvxpyOptimizer
-from src.portfolio.publisher import TargetWeightPublisher
-from src.portfolio.risk import RollingWindowRiskModel
+import numpy as np
+
+from src.portfolio_manager import PortfolioManager
 
 
-class TestPortfolioManager(unittest.TestCase):
-    def test_portfolio_manager_flow(self) -> None:
-        tmp_dir = tempfile.mkdtemp()
-        try:
-            # Setup
-            forecast_db = os.path.join(tmp_dir, "forecasts.db")
-            weights_db = os.path.join(tmp_dir, "weights.db")
-            market_data_path = os.path.join(tmp_dir, "market")
+class TestPortfolioManagerAdditional(unittest.TestCase):
+    def test_rate_limit_reset(self) -> None:
+        pm = PortfolioManager(max_msgs_per_sec=1)
+        self.assertTrue(pm.check_safety(1.0))
+        self.assertFalse(pm.check_safety(1.0))
 
-            publisher = ForecastPublisher(db_path=forecast_db)
-            mde = MarketDataEngine(base_path=market_data_path)
-            risk_model = RollingWindowRiskModel(market_data_engine=mde)
-            optimizer = CvxpyOptimizer(risk_model=risk_model)
-            weight_publisher = TargetWeightPublisher(db_path=weights_db)
+        future_time = datetime.now() + timedelta(seconds=2)
+        with patch("src.portfolio_manager.datetime") as mock_dt:
+            mock_dt.now.return_value = future_time
+            self.assertTrue(pm.check_safety(1.0))
+            self.assertEqual(pm.msg_count, 1)
 
-            PortfolioManager(publisher, optimizer, weight_publisher)
+    def test_singular_cov_robustness(self) -> None:
+        pm = PortfolioManager()
+        forecasts = {1000: 0.1}
+        # Scalar covariance
+        returns = np.array([[0.01], [0.011]])
+        weights = pm.optimize(forecasts, returns)
+        self.assertIn(1000, weights)
 
-            # Mock some market data for risk model
-            timestamp = datetime(2023, 1, 1, 12, 0)
-            bars = cast(
-                List[Bar],
-                [
-                    {
-                        "internal_id": 1,
-                        "timestamp": timestamp,
-                        "close": 100.0,
-                        "open": 100.0,
-                        "high": 101.0,
-                        "low": 99.0,
-                        "volume": 1000.0,
-                    },
-                    {
-                        "internal_id": 2,
-                        "timestamp": timestamp,
-                        "close": 200.0,
-                        "open": 200.0,
-                        "high": 202.0,
-                        "low": 198.0,
-                        "volume": 500.0,
-                    },
-                ],
-            )
-            mde.write_bars(bars)
+    def test_tc_impact_on_optimization(self) -> None:
+        # High TC penalty should prevent small rebalances
+        pm = PortfolioManager(risk_aversion=0.1, tc_penalty=0.1)
+        forecasts = {1000: 0.1}
+        returns = np.array([[0.01], [0.011]])
 
-            # Submit forecasts
-            forecasts = {1: 0.05, 2: -0.02}
-            publisher.submit_forecasts(timestamp, forecasts)
+        w1 = pm.optimize(forecasts, returns)[1000]
 
-            # Check if target weights were published
-            published_weights = weight_publisher.get_target_weights(timestamp)
-            self.assertGreater(len(published_weights), 0)
-            self.assertIn(1, published_weights)
-            self.assertGreater(published_weights[1], 0)
-            self.assertAlmostEqual(
-                sum(published_weights.values()), 1.0, places=5
-            )
-        finally:
-            shutil.rmtree(tmp_dir)
+        forecasts_new = {1000: 0.11}  # Small change
+        w2 = pm.optimize(forecasts_new, returns)[1000]
+
+        self.assertAlmostEqual(w1, w2, places=6)
 
 
 if __name__ == "__main__":
