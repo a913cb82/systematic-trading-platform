@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Dict
+
 from ..alpha.publisher import ForecastPublisher
 from .optimizer import PortfolioOptimizer
 from .publisher import TargetWeightPublisher

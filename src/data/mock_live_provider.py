@@ -2,9 +2,10 @@ import random
 import threading
 import time
 from datetime import datetime
-from typing import List, Callable, Optional, Dict
-from .live_provider import LiveDataProvider
+from typing import Callable, Dict, List, Optional
+
 from ..common.types import Bar
+from .live_provider import LiveDataProvider
 
 
 class MockLiveProvider(LiveDataProvider):

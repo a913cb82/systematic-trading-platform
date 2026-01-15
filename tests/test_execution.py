@@ -1,14 +1,15 @@
-import unittest
 import os
 import shutil
 import tempfile
+import unittest
 from datetime import datetime
-from src.portfolio.publisher import TargetWeightPublisher
-from src.execution.oms import OrderManagementSystem
-from src.execution.engine import SimulatedExecutionEngine
-from src.execution.algos import ExecutionAlgorithm
-from src.execution.safety import SafetyLayer
+
 from src.data.market_data import MarketDataEngine
+from src.execution.algos import ExecutionAlgorithm
+from src.execution.engine import SimulatedExecutionEngine
+from src.execution.oms import OrderManagementSystem
+from src.execution.safety import SafetyLayer
+from src.portfolio.publisher import TargetWeightPublisher
 
 
 class TestExecution(unittest.TestCase):
@@ -46,7 +47,8 @@ class TestExecution(unittest.TestCase):
         ]
         self.mde.write_bars(bars)
 
-        # Publisher submits target weights -> OMS should pick it up -> Engine should execute
+        # Publisher submits target weights -> OMS should pick it up ->
+        # Engine should execute
         weights = {1: 0.1}
         self.publisher.submit_target_weights(timestamp, weights)
 

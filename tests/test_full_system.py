@@ -1,18 +1,18 @@
-import unittest
 import os
 import shutil
 import tempfile
+import unittest
 from datetime import datetime, timedelta
-import pandas as pd
+
 import numpy as np
 
-from src.data.market_data import MarketDataEngine
-from src.alpha.model import MeanReversionModel
+from src.alpha.backtest_event_driven import EventDrivenBacktester
 from src.alpha.features import FeatureStore
+from src.alpha.model import MeanReversionModel
 from src.data.event_store import EventStore
+from src.data.market_data import MarketDataEngine
 from src.portfolio.optimizer import CvxpyOptimizer
 from src.portfolio.risk import RollingWindowRiskModel
-from src.alpha.backtest_event_driven import EventDrivenBacktester
 
 
 class TestFullSystem(unittest.TestCase):
@@ -86,7 +86,7 @@ class TestFullSystem(unittest.TestCase):
         results = backtester.get_results()
         self.assertFalse(results.empty)
 
-        print(f"\nFull System Backtest Results:")
+        print("\nFull System Backtest Results:")
         for k, v in metrics.items():
             print(f"  {k}: {v}")
 

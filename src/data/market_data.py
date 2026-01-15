@@ -1,10 +1,12 @@
 import os
-import pandas as pd
 from datetime import datetime
-from typing import List, Optional, Callable, Any
-from ..common.types import Bar
+from typing import Callable, List, Optional
+
+import pandas as pd
+
 from ..common.base import MarketDataProvider
 from ..common.config import config
+from ..common.types import Bar
 
 
 class MarketDataEngine(MarketDataProvider):
@@ -43,7 +45,8 @@ class MarketDataEngine(MarketDataProvider):
                 existing_df["timestamp_knowledge"] = pd.to_datetime(
                     existing_df["timestamp_knowledge"]
                 )
-                # Append new data. We don't drop duplicates yet because we want to keep historical versions for bitemporal.
+                # Append new data. We don't drop duplicates yet because we
+                # want to keep historical versions for bitemporal.
                 combined_df = pd.concat([existing_df, group])
                 combined_df = combined_df.sort_values(
                     ["timestamp", "timestamp_knowledge"]
@@ -103,7 +106,8 @@ class MarketDataEngine(MarketDataProvider):
                 mask = (df["timestamp"] >= start) & (df["timestamp"] <= end)
                 filtered_df = df.loc[mask]
 
-                # Add internal_id back as it might have been lost in groupby if not careful
+                # Add internal_id back as it might have been lost in
+                # groupby if not careful
                 if "internal_id" not in filtered_df.columns:
                     filtered_df["internal_id"] = internal_id
 

@@ -1,8 +1,8 @@
 from datetime import datetime
-from typing import Dict, List, Callable, Any
+from typing import Callable, Dict, List
+
 from ..common.base import ExecutionEngine
 from ..common.types import Trade
-
 from .algos import ExecutionAlgorithm
 
 

@@ -1,9 +1,10 @@
-import unittest
 import os
 import shutil
-from datetime import datetime, timedelta
-from src.data.market_data import MarketDataEngine
+import unittest
+from datetime import datetime
+
 from src.common.types import Bar
+from src.data.market_data import MarketDataEngine
 
 
 class TestMarketDataEngine(unittest.TestCase):

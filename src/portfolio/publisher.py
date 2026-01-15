@@ -1,7 +1,8 @@
-import sqlite3
 import os
+import sqlite3
 from datetime import datetime
-from typing import Dict, List, Callable, Optional
+from typing import Callable, Dict, List, Optional
+
 from ..common.config import config
 
 
@@ -39,7 +40,8 @@ class TargetWeightPublisher:
             for iid, weight in weights.items():
                 conn.execute(
                     """
-                    INSERT OR REPLACE INTO target_weights (timestamp, internal_id, weight)
+                    INSERT OR REPLACE INTO target_weights
+                    (timestamp, internal_id, weight)
                     VALUES (?, ?, ?)
                 """,
                     (ts_str, iid, weight),
@@ -54,7 +56,10 @@ class TargetWeightPublisher:
         weights = {}
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute(
-                "SELECT internal_id, weight FROM target_weights WHERE timestamp = ?",
+                """
+                SELECT internal_id, weight FROM target_weights
+                WHERE timestamp = ?
+                """,
                 (ts_str,),
             )
             for row in cursor.fetchall():

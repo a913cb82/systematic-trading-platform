@@ -1,13 +1,13 @@
-import time
 import logging
-from datetime import datetime
-from typing import List, Dict
-from .data.live_provider import LiveDataProvider
-from .data.market_data import MarketDataEngine
+import time
+from typing import List
+
 from .alpha.model import AlphaModel
-from .portfolio.manager import PortfolioManager
 from .common.monitoring import monitor
 from .common.types import Bar
+from .data.live_provider import LiveDataProvider
+from .data.market_data import MarketDataEngine
+from .portfolio.manager import PortfolioManager
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,8 @@ class LiveRunner:
         # 2. Subscribe to bars
         # When a live bar arrives, we:
         # a) Write it to the MarketDataEngine (persistence)
-        # b) The MarketDataEngine notifies its subscribers (which could be features)
+        # b) The MarketDataEngine notifies its subscribers (which could
+        # be features)
         # c) We trigger the Alpha/Portfolio pipeline
         self.live_provider.subscribe_bars(self.internal_ids, self._on_live_bar)
 
@@ -70,11 +71,13 @@ class LiveRunner:
         )
 
         # 1. Persist to Market Data Engine
-        # This allows bitemporal queries to work for the Alpha model immediately
+        # This allows bitemporal queries to work for the Alpha model
+        # immediately
         self.market_data_engine.write_bars([bar])
 
         # 2. Trigger Alpha Generation
-        # The alpha model will generate forecasts and publish them (if configured)
+        # The alpha model will generate forecasts and publish them
+        # (if configured)
         timestamp = bar["timestamp"]
 
         try:

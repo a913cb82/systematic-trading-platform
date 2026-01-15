@@ -1,8 +1,9 @@
-import unittest
 import os
+import unittest
 from datetime import datetime
-from src.alpha.processing import SignalProcessor
+
 from src.alpha.combiner import SignalCombiner
+from src.alpha.processing import SignalProcessor
 from src.alpha.publisher import ForecastPublisher
 
 

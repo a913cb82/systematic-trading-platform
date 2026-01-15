@@ -1,7 +1,8 @@
+import os
 import sqlite3
-import pandas as pd
 from datetime import datetime
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
+
 from ..common.types import CorporateAction
 
 
@@ -11,8 +12,6 @@ class CorporateActionMaster:
         self._init_db()
 
     def _init_db(self):
-        import os
-
         db_dir = os.path.dirname(self.db_path)
         if db_dir:
             os.makedirs(db_dir, exist_ok=True)
@@ -27,12 +26,15 @@ class CorporateActionMaster:
                     pay_date TEXT,
                     ratio REAL,
                     timestamp_knowledge TEXT,
-                    PRIMARY KEY (internal_id, type, ex_date, timestamp_knowledge)
+                    PRIMARY KEY (
+                        internal_id, type, ex_date, timestamp_knowledge
+                    )
                 )
             """
             )
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_ca_id ON corporate_actions (internal_id, ex_date)"
+                "CREATE INDEX IF NOT EXISTS idx_ca_id "
+                "ON corporate_actions (internal_id, ex_date)"
             )
 
     def write_actions(self, actions: List[CorporateAction]) -> None:
@@ -41,7 +43,10 @@ class CorporateActionMaster:
                 conn.execute(
                     """
                     INSERT OR REPLACE INTO corporate_actions
-                    (internal_id, type, ex_date, record_date, pay_date, ratio, timestamp_knowledge)
+                    (
+                        internal_id, type, ex_date, record_date,
+                        pay_date, ratio, timestamp_knowledge
+                    )
                     VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                     (
@@ -85,7 +90,9 @@ class CorporateActionMaster:
                 # Bitemporal query: latest knowledge for each event
                 cursor = conn.execute(
                     """
-                    SELECT type, ex_date, record_date, pay_date, ratio, timestamp_knowledge
+                    SELECT
+                        type, ex_date, record_date, pay_date,
+                        ratio, timestamp_knowledge
                     FROM corporate_actions
                     WHERE internal_id = ?
                     AND ex_date >= ? AND ex_date <= ?

@@ -1,7 +1,6 @@
-import logging
-import time
 from datetime import datetime
-from typing import Dict, Any, Optional, List
+from typing import Any, Dict, List, Optional
+
 from .utils import setup_logging
 
 logger = setup_logging()

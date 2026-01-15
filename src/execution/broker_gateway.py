@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Callable
 from datetime import datetime
-from ..common.types import Trade, Bar
+from typing import Callable, Dict
+
+from ..common.types import Trade
 
 
 class BrokerGateway(ABC):
@@ -58,10 +59,8 @@ class MockBrokerGateway(BrokerGateway):
 
         # In a real system, this would be asynchronous.
         # Here we just tell the engine to execute it immediately (simulated).
-        target_weights = {
-            internal_id: 1.0 if side == "BUY" else -1.0
-        }  # Simplified
-        # Note: execute usually takes weights, but here we are sending an order for shares.
+        # Note: execute usually takes weights, but here we are sending an
+        # order for shares.
         # This highlights the gap between Target Weights and Orders.
 
         # For simplicity, we'll just mock a fill

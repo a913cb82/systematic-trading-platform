@@ -1,6 +1,7 @@
-import unittest
 import os
+import unittest
 from datetime import datetime
+
 from src.data.ism import InternalSecurityMaster
 from src.data.symbology import SymbologyService
 

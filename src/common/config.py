@@ -1,6 +1,7 @@
 import os
-import yaml
 from typing import Any, Dict
+
+import yaml
 from dotenv import load_dotenv
 
 # Load environment variables from .env file if it exists
@@ -33,7 +34,8 @@ class Config:
         2. Config file value
         3. Default value
         """
-        # 1. Check environment variable first (normalized to uppercase and underscores)
+        # 1. Check environment variable first
+        # (normalized to uppercase and underscores)
         env_key = f"TRADING_SYSTEM_{key.upper().replace('.', '_')}"
         env_val = os.getenv(env_key)
         if env_val is not None:

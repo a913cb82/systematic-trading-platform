@@ -1,7 +1,9 @@
 import os
-import pandas as pd
 from datetime import datetime
-from typing import List, Optional, Callable, Any, Dict
+from typing import Callable, List, Optional
+
+import pandas as pd
+
 from ..common.types import Event
 
 
@@ -91,8 +93,11 @@ class EventStore:
                         continue
 
                     # Latest knowledge for each event
-                    # Since event value can be anything, we might need a more complex way to identify "same" event if multiple occur at same timestamp.
-                    # For now, assume (timestamp_event, type, internal_id) is the unique key for an event instance.
+                    # Since event value can be anything, we might need a
+                    # more complex way to identify "same" event if multiple
+                    # occur at same timestamp.
+                    # For now, assume (timestamp_event, type, internal_id)
+                    # is the unique key for an event instance.
                     df = (
                         df.sort_values("timestamp_knowledge")
                         .groupby("timestamp_event")

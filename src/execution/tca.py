@@ -1,6 +1,5 @@
-from typing import List, Dict
-from datetime import datetime
-import pandas as pd
+from typing import Dict, List
+
 from ..common.types import Trade
 
 
@@ -10,7 +9,8 @@ class TCAEngine:
     ) -> Dict[int, float]:
         """
         Calculates slippage for each trade relative to an arrival price.
-        Slippage = (Fill Price - Arrival Price) / Arrival Price * 10000 (in bps)
+        Slippage = (Fill Price - Arrival Price) / Arrival Price * 10000
+        (in bps)
         """
         slippage_results = {}
         for fill in fills:
@@ -22,7 +22,8 @@ class TCAEngine:
 
                 # For BUY: higher fill price is positive slippage (bad)
                 # For SELL: lower fill price is positive slippage (bad)
-                # Wait, usually slippage is defined as (Executed - Bench) * Side
+                # Wait, usually slippage is defined as
+                # (Executed - Bench) * Side
                 side_mult = 1 if fill["side"] == "BUY" else -1
                 bps = (fill["price"] - arrival) / arrival * 10000 * side_mult
                 slippage_results[iid] = bps

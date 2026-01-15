@@ -11,3 +11,19 @@ extend-exclude = '''
   | dist
 )/
 '''
+
+[tool.ruff]
+line-length = 79
+target-version = "py310"
+
+[tool.ruff.lint]
+# Enable Pyflakes (E) and pycodestyle (F) codes by default.
+select = ["E", "F", "I", "N", "PL"]
+ignore = []
+
+# Allow fix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+unfixable = []
+
+[tool.ruff.lint.isort]
+known-first-party = ["src"]

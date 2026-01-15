@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Dict, List
-import pandas as pd
-from ..common.types import Trade, Bar
+
+from ..common.types import Trade
 from ..data.market_data import MarketDataEngine
 
 

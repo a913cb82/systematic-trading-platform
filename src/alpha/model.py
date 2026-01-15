@@ -1,8 +1,8 @@
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
+
 from ..common.base import AlphaModel
 from .features import FeatureStore
-
 from .publisher import ForecastPublisher
 
 
@@ -18,7 +18,7 @@ class MeanReversionModel(AlphaModel):
         self.publisher = publisher
 
     def generate_forecasts(self, timestamp: datetime) -> Dict[int, float]:
-        # Simple mean reversion: if 1d return is positive, forecast negative (and vice versa)
+        # Simple mean reversion: if 1d return is positive, forecast negative (and vice versa)  # noqa: E501
         # We need data up to timestamp
         start = timestamp - timedelta(days=5)
         df = self.feature_store.calculate_cycle_feature(

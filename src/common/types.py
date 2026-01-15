@@ -1,5 +1,5 @@
-from typing import TypedDict, Any
 from datetime import datetime
+from typing import Any, TypedDict
 
 
 class Bar(TypedDict):

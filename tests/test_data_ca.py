@@ -1,8 +1,9 @@
-import unittest
 import os
+import unittest
 from datetime import datetime
-from src.data.corporate_actions import CorporateActionMaster
+
 from src.common.types import CorporateAction
+from src.data.corporate_actions import CorporateActionMaster
 
 
 class TestCorporateActionMaster(unittest.TestCase):

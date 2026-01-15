@@ -1,6 +1,8 @@
+import os
 import sqlite3
 from datetime import datetime
-from typing import Dict, Optional, List, Callable
+from typing import Callable, Dict, List, Optional
+
 from ..common.config import config
 
 
@@ -15,9 +17,8 @@ class ForecastPublisher:
         ] = []
 
     def _init_db(self):
-        import os
-
         db_dir = os.path.dirname(self.db_path)
+
         if db_dir:
             os.makedirs(db_dir, exist_ok=True)
         with sqlite3.connect(self.db_path) as conn:
@@ -40,7 +41,8 @@ class ForecastPublisher:
             for iid, signal in forecasts.items():
                 conn.execute(
                     """
-                    INSERT OR REPLACE INTO forecasts (timestamp, internal_id, signal)
+                    INSERT OR REPLACE INTO forecasts
+                    (timestamp, internal_id, signal)
                     VALUES (?, ?, ?)
                 """,
                     (ts_str, iid, signal),
@@ -55,7 +57,7 @@ class ForecastPublisher:
         forecasts = {}
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute(
-                "SELECT internal_id, signal FROM forecasts WHERE timestamp = ?",
+                "SELECT internal_id, signal FROM forecasts WHERE timestamp = ?",  # noqa: E501
                 (ts_str,),
             )
             for row in cursor.fetchall():

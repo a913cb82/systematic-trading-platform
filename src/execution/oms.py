@@ -1,10 +1,12 @@
 from datetime import datetime
-from typing import Dict, List, Optional
-from ..common.types import Trade
-from ..common.base import ExecutionEngine
-from ..portfolio.publisher import TargetWeightPublisher
+from typing import Dict, Optional
 
+from ..common.base import ExecutionEngine
+from ..common.types import Trade
+from ..portfolio.publisher import TargetWeightPublisher
 from .safety import SafetyLayer
+
+RECONCILIATION_TOLERANCE = 1e-5
 
 
 class OrderManagementSystem:
@@ -23,7 +25,8 @@ class OrderManagementSystem:
         # Subscribe to target weights
         self.weight_publisher.subscribe_target_weights(self.on_target_weights)
 
-        # In a real system, we'd also subscribe to fills from the execution engine
+        # In a real system, we'd also subscribe to fills from the
+        # execution engine
         self.execution_engine.subscribe_fills(self.on_fill)
 
     def on_fill(self, fill: Trade) -> None:
@@ -50,7 +53,7 @@ class OrderManagementSystem:
         for iid in all_ids:
             internal = self.internal_positions.get(iid, 0.0)
             broker = broker_positions.get(iid, 0.0)
-            if abs(internal - broker) > 1e-5:
+            if abs(internal - broker) > RECONCILIATION_TOLERANCE:
                 discrepancies.append(
                     {
                         "internal_id": iid,
@@ -62,7 +65,8 @@ class OrderManagementSystem:
 
         if discrepancies:
             print(f"RECONCILIATION DISCREPANCY: {discrepancies}")
-            # In production, we would force-update internal positions to broker state
+            # In production, we would force-update internal positions
+            # to broker state
             for d in discrepancies:
                 self.internal_positions[d["internal_id"]] = d["broker"]
         else:

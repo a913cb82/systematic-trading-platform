@@ -1,20 +1,19 @@
+import os
+import shutil
+import tempfile
 import unittest
-import pytest
 from datetime import datetime
+
 from src.alpha.publisher import ForecastPublisher
-from src.portfolio.optimizer import CvxpyOptimizer
-from src.portfolio.risk import RollingWindowRiskModel
-from src.portfolio.publisher import TargetWeightPublisher
-from src.portfolio.manager import PortfolioManager
 from src.data.market_data import MarketDataEngine
+from src.portfolio.manager import PortfolioManager
+from src.portfolio.optimizer import CvxpyOptimizer
+from src.portfolio.publisher import TargetWeightPublisher
+from src.portfolio.risk import RollingWindowRiskModel
 
 
 class TestPortfolioManager(unittest.TestCase):
     def test_portfolio_manager_flow(self):
-        import tempfile
-        import shutil
-        import os
-
         tmp_dir = tempfile.mkdtemp()
         try:
             # Setup
@@ -28,7 +27,7 @@ class TestPortfolioManager(unittest.TestCase):
             optimizer = CvxpyOptimizer(risk_model=risk_model)
             weight_publisher = TargetWeightPublisher(db_path=weights_db)
 
-            manager = PortfolioManager(publisher, optimizer, weight_publisher)
+            PortfolioManager(publisher, optimizer, weight_publisher)
 
             # Mock some market data for risk model
             timestamp = datetime(2023, 1, 1, 12, 0)

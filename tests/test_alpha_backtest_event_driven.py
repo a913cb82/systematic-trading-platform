@@ -1,15 +1,15 @@
-import unittest
 import os
 import shutil
-import pandas as pd
+import unittest
 from datetime import datetime, timedelta
-from src.data.market_data import MarketDataEngine
-from src.data.event_store import EventStore
+
+from src.alpha.backtest_event_driven import EventDrivenBacktester
 from src.alpha.features import FeatureStore
 from src.alpha.model import MeanReversionModel
-from src.portfolio.optimizer import SimpleOptimizer
-from src.alpha.backtest_event_driven import EventDrivenBacktester
 from src.common.types import Bar
+from src.data.event_store import EventStore
+from src.data.market_data import MarketDataEngine
+from src.portfolio.optimizer import SimpleOptimizer
 
 
 class TestEventDrivenBacktester(unittest.TestCase):

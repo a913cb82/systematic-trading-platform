@@ -1,12 +1,13 @@
-import unittest
 import os
 import shutil
-from datetime import datetime, timedelta
-from src.alpha.model import MeanReversionModel
+import unittest
+from datetime import datetime
+
 from src.alpha.features import FeatureStore
-from src.data.market_data import MarketDataEngine
-from src.data.event_store import EventStore
+from src.alpha.model import MeanReversionModel
 from src.common.types import Bar
+from src.data.event_store import EventStore
+from src.data.market_data import MarketDataEngine
 
 
 class TestAlphaModel(unittest.TestCase):

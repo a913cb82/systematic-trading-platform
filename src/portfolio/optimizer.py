@@ -1,7 +1,9 @@
 from datetime import datetime
-from typing import Dict, List
-import numpy as np
+from typing import Dict
+
 import cvxpy as cp
+import numpy as np
+
 from ..common.base import PortfolioOptimizer, RiskModel
 from ..common.config import config
 
@@ -29,7 +31,7 @@ class SimpleOptimizer(PortfolioOptimizer):
 
 
 class CvxpyOptimizer(PortfolioOptimizer):
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         risk_model: RiskModel,
         lambda_risk: float | None = None,
@@ -138,14 +140,19 @@ class CvxpyOptimizer(PortfolioOptimizer):
         # Note: If market neutral is requested, sum(w) == 1 might be wrong.
         # Usually market neutral means sum(w) == 0.
         # Let's adjust based on lambda_market.
+        max_leverage = 2.0
         if self.lambda_market > 0:
             constraints = [
                 w >= -self.max_position,
                 w <= self.max_position,
-                cp.norm(w, 1) <= 2.0,  # Limit gross leverage to 200%
+                cp.norm(w, 1) <= max_leverage,  # Limit gross leverage
             ]
         else:
-            constraints = [cp.sum(w) == 1, w >= 0, w <= self.max_position]
+            constraints = [
+                cp.sum(w) == 1,
+                w >= 0,
+                w <= self.max_position,
+            ]
 
         prob = cp.Problem(objective, constraints)
         try:
@@ -154,7 +161,7 @@ class CvxpyOptimizer(PortfolioOptimizer):
             # Fallback
             return SimpleOptimizer().optimize(timestamp, forecasts)
 
-        if prob.status != cp.OPTIMAL and prob.status != cp.OPTIMAL_INACCURATE:
+        if prob.status not in [cp.OPTIMAL, cp.OPTIMAL_INACCURATE]:
             return SimpleOptimizer().optimize(timestamp, forecasts)
 
         return {internal_ids[i]: float(w.value[i]) for i in range(n)}

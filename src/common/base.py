@@ -1,7 +1,8 @@
-from typing import Any
 from abc import ABC, abstractmethod
 from datetime import datetime
-from .types import Bar, Event, Trade
+from typing import Any
+
+from .types import Bar, Trade
 
 
 class MarketDataProvider(ABC):

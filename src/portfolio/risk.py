@@ -1,12 +1,13 @@
-import os
 import json
+import os
+from datetime import datetime
+from typing import Dict, List
+
 import numpy as np
 import pandas as pd
-from datetime import datetime
-from typing import List, Dict, Optional
-from ..common.base import RiskModel
-
 from sklearn.decomposition import PCA
+
+from ..common.base import RiskModel
 
 
 class FundamentalRiskModel(RiskModel):
@@ -34,18 +35,19 @@ class FundamentalRiskModel(RiskModel):
         n_assets = len(internal_ids)
         n_factors = len(sectors)
 
-        B = np.zeros((n_assets, n_factors))
+        b_matrix = np.zeros((n_assets, n_factors))
         for i, iid in enumerate(internal_ids):
             sector = exposures[iid].get("sector", "Unknown")
             j = sectors.index(sector)
-            B[i, j] = 1.0
+            b_matrix[i, j] = 1.0
 
-        # Simplified: assume factor covariance is identity (uncorrelated sectors)
-        # and specific risk is some constant. In reality, these should be estimated.
+        # Simplified: assume factor covariance is identity
+        # (uncorrelated sectors) and specific risk is some constant.
+        # In reality, these should be estimated.
         factor_cov = np.eye(n_factors) * 0.01
         specific_risk = np.eye(n_assets) * 0.05
 
-        total_cov = B @ factor_cov @ B.T + specific_risk
+        total_cov = b_matrix @ factor_cov @ b_matrix.T + specific_risk
 
         return total_cov.tolist()
 
@@ -149,8 +151,9 @@ class RiskProvider(RiskModel):
     def get_covariance_matrix(
         self, date: datetime, internal_ids: List[int]
     ) -> List[List[float]]:
-        # This implementation assumes the matrix in storage corresponds to a specific set of IDs
-        # In a real system, we'd need to map these correctly.
+        # This implementation assumes the matrix in storage corresponds to
+        # a specific set of IDs. In a real system, we'd need to map these
+        # correctly.
         date_str = date.strftime("%Y%m%d")
         file_path = os.path.join(
             self.storage_path, date_str, "covariance.json"

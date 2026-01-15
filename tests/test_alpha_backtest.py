@@ -1,7 +1,8 @@
 import unittest
+from datetime import datetime
+
 import pandas as pd
-import numpy as np
-from datetime import datetime, timedelta
+
 from src.alpha.backtest_vectorized import VectorizedBacktester
 
 

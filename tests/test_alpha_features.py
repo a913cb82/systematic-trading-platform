@@ -1,11 +1,14 @@
-import unittest
 import os
 import shutil
+import unittest
 from datetime import datetime, timedelta
+
+import numpy as np
+
 from src.alpha.features import FeatureStore
-from src.data.market_data import MarketDataEngine
-from src.data.event_store import EventStore
 from src.common.types import Bar, Event
+from src.data.event_store import EventStore
+from src.data.market_data import MarketDataEngine
 
 
 class TestFeatureStore(unittest.TestCase):
@@ -51,7 +54,6 @@ class TestFeatureStore(unittest.TestCase):
         )
         self.assertEqual(len(features), 10)
         # First return should be NaN
-        import numpy as np
 
         self.assertTrue(np.isnan(features.iloc[0]["feature"]))
         self.assertGreater(features.iloc[1]["feature"], 0)

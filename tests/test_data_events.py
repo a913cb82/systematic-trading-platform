@@ -1,9 +1,10 @@
-import unittest
 import os
 import shutil
+import unittest
 from datetime import datetime
-from src.data.event_store import EventStore
+
 from src.common.types import Event
+from src.data.event_store import EventStore
 
 
 class TestEventStore(unittest.TestCase):

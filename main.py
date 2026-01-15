@@ -1,23 +1,23 @@
 import logging
-import time
 from datetime import datetime, timedelta
-from src.data.ism import InternalSecurityMaster
-from src.data.market_data import MarketDataEngine
-from src.data.event_store import EventStore
+
 from src.alpha.features import FeatureStore
 from src.alpha.model import MeanReversionModel
 from src.alpha.publisher import ForecastPublisher
-from src.portfolio.risk import RollingWindowRiskModel
-from src.portfolio.optimizer import CvxpyOptimizer
-from src.portfolio.publisher import TargetWeightPublisher
-from src.portfolio.manager import PortfolioManager
-from src.execution.engine import SimulatedExecutionEngine
+from src.common.utils import setup_logging
+from src.data.event_store import EventStore
+from src.data.ism import InternalSecurityMaster
+from src.data.market_data import MarketDataEngine
+from src.data.mock_live_provider import MockLiveProvider
 from src.execution.algos import ExecutionAlgorithm
+from src.execution.engine import SimulatedExecutionEngine
 from src.execution.oms import OrderManagementSystem
 from src.execution.safety import SafetyLayer
-from src.data.mock_live_provider import MockLiveProvider
 from src.live_runner import LiveRunner
-from src.common.utils import setup_logging
+from src.portfolio.manager import PortfolioManager
+from src.portfolio.optimizer import CvxpyOptimizer
+from src.portfolio.publisher import TargetWeightPublisher
+from src.portfolio.risk import RollingWindowRiskModel
 
 
 def main():
@@ -80,7 +80,7 @@ def main():
     algo = ExecutionAlgorithm(mde)
     execution_engine = SimulatedExecutionEngine(algo)
     safety = SafetyLayer()
-    oms = OrderManagementSystem(weight_publisher, execution_engine, safety)
+    OrderManagementSystem(weight_publisher, execution_engine, safety)
 
     # 4. Setup Live Ingestion
     live_provider = MockLiveProvider()

@@ -1,13 +1,15 @@
-import pandas as pd
-import numpy as np
 from datetime import datetime
-from typing import List, Dict, Any, Optional
-from ..common.base import MarketDataProvider, AlphaModel, PortfolioOptimizer
+from typing import Any, Dict, List
+
+import numpy as np
+import pandas as pd
+
+from ..common.base import AlphaModel, MarketDataProvider, PortfolioOptimizer
 from ..common.types import Trade
 
 
 class EventDrivenBacktester:
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         market_data: MarketDataProvider,
         alpha_model: AlphaModel,
@@ -60,7 +62,7 @@ class EventDrivenBacktester:
             total_equity += shares * self.current_prices.get(iid, 0.0)
 
         # 3. Generate Forecasts
-        # IMPORTANT: In a real system, we must ensure alpha_model only uses data
+        # IMPORTANT: In a real system, we must ensure alpha_model only uses data  # noqa: E501
         # that was known BEFORE this trade price was established.
         # For this PoC, we assume the model generates signals at T close
         # and we execute at T close (slight look-ahead if not careful).
@@ -136,7 +138,8 @@ class EventDrivenBacktester:
 
     def calculate_metrics(self) -> Dict[str, float]:
         df = self.get_results()
-        if df.empty or len(df) < 2:
+        min_required_bars = 2
+        if df.empty or len(df) < min_required_bars:
             return {}
 
         df["returns"] = df["equity"].pct_change().fillna(0)

@@ -1,9 +1,9 @@
 import unittest
-from datetime import datetime
+
+from src.data.market_data import MarketDataEngine
+from src.execution.algos import ExecutionAlgorithm
 from src.execution.broker_gateway import MockBrokerGateway
 from src.execution.engine import SimulatedExecutionEngine
-from src.execution.algos import ExecutionAlgorithm
-from src.data.market_data import MarketDataEngine
 
 
 class TestBrokerGateway(unittest.TestCase):

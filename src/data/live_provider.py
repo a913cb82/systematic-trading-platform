@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
-from typing import List, Callable, Optional
-from datetime import datetime
+from typing import Callable, List, Optional
+
 from ..common.types import Bar
 
 

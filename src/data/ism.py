@@ -1,13 +1,12 @@
+import os
 import sqlite3
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
 
 class InternalSecurityMaster:
     def __init__(self, db_path: str = "trading_system.db"):
         self.db_path = db_path
-        import os
-
         db_dir = os.path.dirname(self.db_path)
         if db_dir:
             os.makedirs(db_dir, exist_ok=True)
@@ -30,10 +29,12 @@ class InternalSecurityMaster:
             """
             )
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_ism_ticker ON ism_mapping (ticker, exchange)"
+                "CREATE INDEX IF NOT EXISTS idx_ism_ticker "
+                "ON ism_mapping (ticker, exchange)"
             )
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_ism_id ON ism_mapping (internal_id)"
+                "CREATE INDEX IF NOT EXISTS idx_ism_id "
+                "ON ism_mapping (internal_id)"
             )
 
             conn.execute(
@@ -45,12 +46,15 @@ class InternalSecurityMaster:
                     start_date TEXT,
                     end_date TEXT,
                     timestamp_knowledge TEXT,
-                    PRIMARY KEY (internal_id, id_type, start_date, timestamp_knowledge)
+                    PRIMARY KEY (
+                        internal_id, id_type, start_date, timestamp_knowledge
+                    )
                 )
             """
             )
             conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_ext_val ON external_mappings (id_type, id_value)"
+                "CREATE INDEX IF NOT EXISTS idx_ext_val "
+                "ON external_mappings (id_type, id_value)"
             )
 
     def register_security(
@@ -62,8 +66,8 @@ class InternalSecurityMaster:
         internal_id: Optional[int] = None,
     ) -> int:
         """
-        Registers a ticker/exchange mapping. If internal_id is provided, it links to that ID.
-        Otherwise, it creates a new one.
+        Registers a ticker/exchange mapping. If internal_id is provided,
+        it links to that ID. Otherwise, it creates a new one.
         """
         start_date_str = start_date.strftime("%Y-%m-%d")
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -94,7 +98,10 @@ class InternalSecurityMaster:
             # Insert new record
             conn.execute(
                 """
-                INSERT INTO ism_mapping (internal_id, ticker, exchange, sector, start_date, end_date, timestamp_knowledge)
+                INSERT INTO ism_mapping (
+                    internal_id, ticker, exchange, sector,
+                    start_date, end_date, timestamp_knowledge
+                )
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
                 (
@@ -145,7 +152,10 @@ class InternalSecurityMaster:
             # Insert new
             conn.execute(
                 """
-                INSERT INTO external_mappings (internal_id, id_type, id_value, start_date, end_date, timestamp_knowledge)
+                INSERT INTO external_mappings (
+                    internal_id, id_type, id_value,
+                    start_date, end_date, timestamp_knowledge
+                )
                 VALUES (?, ?, ?, ?, ?, ?)
             """,
                 (
@@ -215,7 +225,8 @@ class InternalSecurityMaster:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute(
                 """
-                SELECT ticker, exchange, sector, start_date, end_date FROM ism_mapping
+                SELECT ticker, exchange, sector, start_date, end_date
+                FROM ism_mapping
                 WHERE internal_id = ?
                 AND start_date <= ? AND (end_date > ? OR end_date IS NULL)
                 AND timestamp_knowledge <= ?
@@ -244,12 +255,15 @@ class InternalSecurityMaster:
         as_of_str = (as_of or datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
         mappings = {}
         with sqlite3.connect(self.db_path) as conn:
-            # This one is tricky because we want the latest knowledge for each id_type
+            # This one is tricky because we want the latest knowledge
+            # for each id_type
             cursor = conn.execute(
                 """
                 SELECT id_type, id_value FROM (
                     SELECT id_type, id_value, timestamp_knowledge,
-                    ROW_NUMBER() OVER (PARTITION BY id_type ORDER BY timestamp_knowledge DESC) as rn
+                    ROW_NUMBER() OVER (
+                        PARTITION BY id_type ORDER BY timestamp_knowledge DESC
+                    ) as rn
                     FROM external_mappings
                     WHERE internal_id = ?
                     AND start_date <= ? AND (end_date > ? OR end_date IS NULL)
