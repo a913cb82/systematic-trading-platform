@@ -10,6 +10,14 @@ repos:
     hooks:
     -   id: mypy
         additional_dependencies: [tokenize-rt==3.2.0, types-PyYAML, types-setuptools]
+-   repo: local
+    hooks:
+    -   id: pytest
+        name: pytest
+        entry: bash -c "source .venv/bin/activate && pytest"
+        language: system
+        pass_filenames: false
+        always_run: true
 -   repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
