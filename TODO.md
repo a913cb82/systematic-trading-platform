@@ -6,9 +6,9 @@ This document outlines the roadmap for building the systematic trading system. W
 **Goal:** Establish the core Python framework and directory structure for the PoC.
 
 ### Tasks
-- [ ] **Directory Scaffolding:** Create the project structure (`src/data/`, `src/alpha/`, `src/portfolio/`, `src/execution/`, `src/common/`).
-- [ ] **Core Base Classes:** Define abstract base classes (ABCs) for key components (e.g., `BaseProvider`, `BaseModel`, `BaseOptimizer`) to ensure interface adherence.
-- [ ] **Common Library:** Implement shared utilities for logging, timestamp handling, and the `TypedDict` contracts.
+- [x] **Directory Scaffolding:** Create the project structure (`src/data/`, `src/alpha/`, `src/portfolio/`, `src/execution/`, `src/common/`).
+- [x] **Core Base Classes:** Define abstract base classes (ABCs) for key components (e.g., `BaseProvider`, `BaseModel`, `BaseOptimizer`) to ensure interface adherence.
+- [x] **Common Library:** Implement shared utilities for logging, timestamp handling, and the `TypedDict` contracts.
 
 ---
 
