@@ -7,6 +7,6 @@ pytest
 PyYAML
 python-dotenv
 scikit-learn
-black
-pre-commit
 ruff
+pre-commit
+mypy

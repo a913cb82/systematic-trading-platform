@@ -9,8 +9,8 @@ class SignalCombiner:
         if not forecast_list:
             return {}
 
-        combined = {}
-        counts = {}
+        combined: Dict[int, float] = {}
+        counts: Dict[int, int] = {}
 
         for forecasts in forecast_list:
             for iid, val in forecasts.items():
@@ -28,7 +28,7 @@ class SignalCombiner:
         if not forecast_list or len(forecast_list) != len(weights):
             raise ValueError("Mismatched forecasts and weights")
 
-        combined = {}
+        combined: Dict[int, float] = {}
         for forecasts, weight in zip(forecast_list, weights):
             for iid, val in forecasts.items():
                 combined[iid] = combined.get(iid, 0.0) + val * weight

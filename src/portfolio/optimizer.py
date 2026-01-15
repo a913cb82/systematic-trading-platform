@@ -161,7 +161,10 @@ class CvxpyOptimizer(PortfolioOptimizer):
             # Fallback
             return SimpleOptimizer().optimize(timestamp, forecasts)
 
-        if prob.status not in [cp.OPTIMAL, cp.OPTIMAL_INACCURATE]:
+        if (
+            prob.status not in [cp.OPTIMAL, cp.OPTIMAL_INACCURATE]
+            or w.value is None
+        ):
             return SimpleOptimizer().optimize(timestamp, forecasts)
 
         return {internal_ids[i]: float(w.value[i]) for i in range(n)}

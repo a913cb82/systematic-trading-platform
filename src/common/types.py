@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any, TypedDict
 
 
-class Bar(TypedDict):
+class Bar(TypedDict, total=False):
     internal_id: int
     timestamp: datetime
     timestamp_knowledge: datetime
@@ -33,11 +33,11 @@ class Event(TypedDict):
     timestamp_knowledge: datetime
 
 
-class CorporateAction(TypedDict):
+class CorporateAction(TypedDict, total=False):
     internal_id: int
     type: str  # 'SPLIT' | 'DIVIDEND'
     ex_date: datetime
-    record_date: datetime
-    pay_date: datetime
+    record_date: datetime | None
+    pay_date: datetime | None
     ratio: float  # For splits: 2.0 for 2-for-1. For dividends: amount.
     timestamp_knowledge: datetime

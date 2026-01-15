@@ -1,7 +1,7 @@
 import json
 import os
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict, List, cast
 
 import numpy as np
 import pandas as pd
@@ -49,16 +49,16 @@ class FundamentalRiskModel(RiskModel):
 
         total_cov = b_matrix @ factor_cov @ b_matrix.T + specific_risk
 
-        return total_cov.tolist()
+        return cast(List[List[float]], total_cov.tolist())
 
     def get_factor_exposures(
         self, date: datetime, internal_ids: List[int]
     ) -> Dict[int, Dict[str, float]]:
-        exposures = {}
+        exposures: Dict[int, Dict[str, float]] = {}
         for iid in internal_ids:
             info = self.ism.get_symbol_info(iid, date)
             sector = info.get("sector", "Unknown") if info else "Unknown"
-            exposures[iid] = {"sector": sector}
+            exposures[iid] = {sector: 1.0}
         return exposures
 
 
@@ -84,7 +84,7 @@ class PCARiskModel(RiskModel):
         bars = self.market_data_engine.get_bars(internal_ids, start_date, date)
 
         if not bars:
-            return np.eye(len(internal_ids)).tolist()
+            return cast(List[List[float]], np.eye(len(internal_ids)).tolist())
 
         df = pd.DataFrame(bars)
         pivot_df = df.pivot(
@@ -93,7 +93,7 @@ class PCARiskModel(RiskModel):
         returns_df = pivot_df.pct_change().dropna()
 
         if returns_df.empty or len(returns_df) < self.n_factors:
-            return np.eye(len(internal_ids)).tolist()
+            return cast(List[List[float]], np.eye(len(internal_ids)).tolist())
 
         # Reorder and handle missing values
         returns_df = returns_df.reindex(columns=internal_ids).fillna(0)
@@ -118,7 +118,7 @@ class PCARiskModel(RiskModel):
         # Total covariance
         total_cov = systematic_cov + specific_variances
 
-        return total_cov.tolist()
+        return cast(List[List[float]], total_cov.tolist())
 
     def get_factor_exposures(
         self, date: datetime, internal_ids: List[int]
@@ -162,11 +162,11 @@ class RiskProvider(RiskModel):
         if not os.path.exists(file_path):
             # Fallback or error
             n = len(internal_ids)
-            return np.eye(n).tolist()
+            return cast(List[List[float]], np.eye(n).tolist())
 
         with open(file_path, "r") as f:
             matrix = json.load(f)
-        return matrix
+        return cast(List[List[float]], matrix)
 
     def get_factor_exposures(
         self, date: datetime, internal_ids: List[int]
@@ -203,7 +203,7 @@ class RollingWindowRiskModel(RiskModel):
         bars = self.market_data_engine.get_bars(internal_ids, start_date, date)
 
         if not bars:
-            return np.eye(len(internal_ids)).tolist()
+            return cast(List[List[float]], np.eye(len(internal_ids)).tolist())
 
         df = pd.DataFrame(bars)
         df["timestamp"] = pd.to_datetime(df["timestamp"])
@@ -215,7 +215,7 @@ class RollingWindowRiskModel(RiskModel):
         returns_df = pivot_df.pct_change().dropna()
 
         if returns_df.empty:
-            return np.eye(len(internal_ids)).tolist()
+            return cast(List[List[float]], np.eye(len(internal_ids)).tolist())
 
         # Ensure all internal_ids are present
         for iid in internal_ids:
@@ -228,7 +228,7 @@ class RollingWindowRiskModel(RiskModel):
         # Fill NaNs with 0
         cov_matrix = np.nan_to_num(cov_matrix)
 
-        return cov_matrix.tolist()
+        return cast(List[List[float]], cov_matrix.tolist())
 
     def get_factor_exposures(
         self, date: datetime, internal_ids: List[int]

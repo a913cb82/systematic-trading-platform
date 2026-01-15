@@ -3,7 +3,9 @@ import shutil
 import tempfile
 import unittest
 from datetime import datetime
+from typing import List, cast
 
+from src.common.types import Bar
 from src.data.market_data import MarketDataEngine
 from src.execution.algos import ExecutionAlgorithm
 from src.execution.engine import SimulatedExecutionEngine
@@ -34,17 +36,20 @@ class TestExecution(unittest.TestCase):
         timestamp = datetime(2023, 1, 1, 10, 0)
 
         # Mock market data for the algo to find a price
-        bars = [
-            {
-                "internal_id": 1,
-                "timestamp": timestamp,
-                "close": 150.0,
-                "open": 150.0,
-                "high": 151.0,
-                "low": 149.0,
-                "volume": 10000.0,
-            }
-        ]
+        bars = cast(
+            List[Bar],
+            [
+                {
+                    "internal_id": 1,
+                    "timestamp": timestamp,
+                    "close": 150.0,
+                    "open": 150.0,
+                    "high": 151.0,
+                    "low": 149.0,
+                    "volume": 10000.0,
+                }
+            ],
+        )
         self.mde.write_bars(bars)
 
         # Publisher submits target weights -> OMS should pick it up ->

@@ -38,7 +38,7 @@ class EventDrivenBacktester:
         universe = self.market_data.get_universe(self.start_date)
         # Fetch all bars for the period
         bars = self.market_data.get_bars(
-            universe, self.start_date, self.end_date
+            universe, self.start_date, self.end_date, adjustment="RAW"
         )
 
         if not bars:

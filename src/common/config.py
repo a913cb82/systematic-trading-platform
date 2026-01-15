@@ -1,7 +1,7 @@
 import os
 from typing import Any, Dict
 
-import yaml
+import yaml  # type: ignore
 from dotenv import load_dotenv
 
 # Load environment variables from .env file if it exists

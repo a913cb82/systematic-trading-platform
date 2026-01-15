@@ -1,9 +1,11 @@
 import logging
 from datetime import datetime, timedelta
+from typing import List, cast
 
 from src.alpha.features import FeatureStore
 from src.alpha.model import MeanReversionModel
 from src.alpha.publisher import ForecastPublisher
+from src.common.types import Bar
 from src.common.utils import setup_logging
 from src.data.event_store import EventStore
 from src.data.ism import InternalSecurityMaster
@@ -42,24 +44,24 @@ def main():
     # Pre-populate some historical data for the models to work
     logger.info("Pre-populating historical data...")
     for iid, price in [(aapl_id, 150.0), (msft_id, 250.0)]:
-        historical_bars = []
-        for i in range(20):
-            ts = start_date + timedelta(days=i)
-            p = price + (i * 0.5)
-            historical_bars.append(
+        historical_bars = cast(
+            List[Bar],
+            [
                 {
                     "internal_id": iid,
-                    "timestamp": ts,
-                    "timestamp_knowledge": ts,
-                    "open": p,
-                    "high": p + 1,
-                    "low": p - 1,
-                    "close": p,
+                    "timestamp": start_date + timedelta(days=i),
+                    "timestamp_knowledge": start_date + timedelta(days=i),
+                    "open": price + (i * 0.5),
+                    "high": price + (i * 0.5) + 1,
+                    "low": price + (i * 0.5) - 1,
+                    "close": price + (i * 0.5),
                     "volume": 1000,
                     "buy_volume": 500,
                     "sell_volume": 500,
                 }
-            )
+                for i in range(20)
+            ],
+        )
         mde.write_bars(historical_bars)
 
     # 2. Setup Alpha & Portfolio

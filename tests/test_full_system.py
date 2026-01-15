@@ -3,12 +3,14 @@ import shutil
 import tempfile
 import unittest
 from datetime import datetime, timedelta
+from typing import List, cast
 
 import numpy as np
 
 from src.alpha.backtest_event_driven import EventDrivenBacktester
 from src.alpha.features import FeatureStore
 from src.alpha.model import MeanReversionModel
+from src.common.types import Bar
 from src.data.event_store import EventStore
 from src.data.market_data import MarketDataEngine
 from src.portfolio.optimizer import CvxpyOptimizer
@@ -36,24 +38,31 @@ class TestFullSystem(unittest.TestCase):
         num_days = 30
 
         for iid, base_price in [(1, 100.0), (2, 200.0)]:
-            bars = []
-            for i in range(num_days):
-                ts = start_date + timedelta(days=i)
-                # Random walk with mean reversion component
-                price = (
-                    base_price + np.sin(i * 0.5) * 5 + np.random.normal(0, 1)
-                )
-                bars.append(
+            bars = cast(
+                List[Bar],
+                [
                     {
                         "internal_id": iid,
-                        "timestamp": ts,
-                        "open": price,
-                        "high": price + 1,
-                        "low": price - 1,
-                        "close": price,
+                        "timestamp": start_date + timedelta(days=i),
+                        "open": base_price
+                        + np.sin(i * 0.5) * 5
+                        + np.random.normal(0, 1),
+                        "high": base_price
+                        + np.sin(i * 0.5) * 5
+                        + np.random.normal(0, 1)
+                        + 1,
+                        "low": base_price
+                        + np.sin(i * 0.5) * 5
+                        + np.random.normal(0, 1)
+                        - 1,
+                        "close": base_price
+                        + np.sin(i * 0.5) * 5
+                        + np.random.normal(0, 1),
                         "volume": 10000.0,
                     }
-                )
+                    for i in range(num_days)
+                ],
+            )
             self.mde.write_bars(bars)
 
         # 2. Setup components

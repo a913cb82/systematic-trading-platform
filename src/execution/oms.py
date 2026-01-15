@@ -68,7 +68,7 @@ class OrderManagementSystem:
             # In production, we would force-update internal positions
             # to broker state
             for d in discrepancies:
-                self.internal_positions[d["internal_id"]] = d["broker"]
+                self.internal_positions[d["internal_id"]] = d["broker"]  # type: ignore
         else:
             print(
                 "RECONCILIATION SUCCESS: Internal and Broker positions match."

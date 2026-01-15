@@ -3,8 +3,10 @@ import shutil
 import tempfile
 import unittest
 from datetime import datetime
+from typing import List, cast
 
 from src.alpha.publisher import ForecastPublisher
+from src.common.types import Bar
 from src.data.market_data import MarketDataEngine
 from src.portfolio.manager import PortfolioManager
 from src.portfolio.optimizer import CvxpyOptimizer
@@ -31,26 +33,29 @@ class TestPortfolioManager(unittest.TestCase):
 
             # Mock some market data for risk model
             timestamp = datetime(2023, 1, 1, 12, 0)
-            bars = [
-                {
-                    "internal_id": 1,
-                    "timestamp": timestamp,
-                    "close": 100.0,
-                    "open": 100.0,
-                    "high": 101.0,
-                    "low": 99.0,
-                    "volume": 1000.0,
-                },
-                {
-                    "internal_id": 2,
-                    "timestamp": timestamp,
-                    "close": 200.0,
-                    "open": 200.0,
-                    "high": 202.0,
-                    "low": 198.0,
-                    "volume": 500.0,
-                },
-            ]
+            bars = cast(
+                List[Bar],
+                [
+                    {
+                        "internal_id": 1,
+                        "timestamp": timestamp,
+                        "close": 100.0,
+                        "open": 100.0,
+                        "high": 101.0,
+                        "low": 99.0,
+                        "volume": 1000.0,
+                    },
+                    {
+                        "internal_id": 2,
+                        "timestamp": timestamp,
+                        "close": 200.0,
+                        "open": 200.0,
+                        "high": 202.0,
+                        "low": 198.0,
+                        "volume": 500.0,
+                    },
+                ],
+            )
             mde.write_bars(bars)
 
             # Submit forecasts

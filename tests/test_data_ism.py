@@ -30,8 +30,10 @@ class TestInternalSecurityMaster(unittest.TestCase):
 
         # Lookup by ID
         info = self.ism.get_symbol_info(internal_id, datetime(2020, 6, 1))
-        self.assertEqual(info["ticker"], "AAPL")
-        self.assertEqual(info["exchange"], "NASDAQ")
+        self.assertIsNotNone(info)
+        if info:
+            self.assertEqual(info["ticker"], "AAPL")
+            self.assertEqual(info["exchange"], "NASDAQ")
 
     def test_ticker_change(self):
         # Initial registration

@@ -3,11 +3,13 @@ import shutil
 import tempfile
 import unittest
 from datetime import datetime
+from typing import cast
 from unittest.mock import MagicMock
 
 from src.alpha.features import FeatureStore
 from src.alpha.model import MeanReversionModel
 from src.alpha.publisher import ForecastPublisher
+from src.common.types import Bar
 from src.data.event_store import EventStore
 from src.data.market_data import MarketDataEngine
 from src.data.mock_live_provider import MockLiveProvider
@@ -63,21 +65,24 @@ class TestLiveRunner(unittest.TestCase):
         Tests that receiving a live bar triggers the expected pipeline.
         """
         timestamp = datetime.now()
-        bar = {
-            "internal_id": 1,
-            "timestamp": timestamp,
-            "timestamp_knowledge": timestamp,
-            "open": 100.0,
-            "high": 101.0,
-            "low": 99.0,
-            "close": 100.0,
-            "volume": 1000,
-            "buy_volume": 500,
-            "sell_volume": 500,
-        }
+        bar = cast(
+            Bar,
+            {
+                "internal_id": 1,
+                "timestamp": timestamp,
+                "timestamp_knowledge": timestamp,
+                "open": 100.0,
+                "high": 101.0,
+                "low": 99.0,
+                "close": 100.0,
+                "volume": 1000,
+                "buy_volume": 500,
+                "sell_volume": 500,
+            },
+        )
 
         # Mock alpha_model to verify it gets called
-        self.alpha_model.generate_forecasts = MagicMock(
+        self.alpha_model.generate_forecasts = MagicMock(  # type: ignore
             return_value={1: -0.01}
         )
 
