@@ -10,7 +10,7 @@ from src.data.market_data import MarketDataEngine
 
 
 class TestPriceAdjustment(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.tmp_dir = tempfile.mkdtemp()
         self.market_path = os.path.join(self.tmp_dir, "market")
         self.ca_db = os.path.join(self.tmp_dir, "ca.db")
@@ -18,10 +18,10 @@ class TestPriceAdjustment(unittest.TestCase):
         self.ca_master = CorporateActionMaster(self.ca_db)
         self.mde = MarketDataEngine(self.market_path, ca_master=self.ca_master)
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         shutil.rmtree(self.tmp_dir)
 
-    def test_split_adjustment(self):
+    def test_split_adjustment(self) -> None:
         # 1. Write raw bars (Price 100 before, 50 after a 2-for-1 split)
         # We simulate that the data was ingested RAW.
         # Day 1: 100

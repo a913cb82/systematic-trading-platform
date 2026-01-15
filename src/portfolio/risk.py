@@ -1,7 +1,7 @@
 import json
 import os
 from datetime import datetime
-from typing import Dict, List, cast
+from typing import Any, Dict, List, cast
 
 import numpy as np
 import pandas as pd
@@ -15,7 +15,7 @@ class FundamentalRiskModel(RiskModel):
     Fundamental risk model using sectors as factors.
     """
 
-    def __init__(self, market_data_engine, ism):
+    def __init__(self, market_data_engine: Any, ism: Any) -> None:
         self.market_data_engine = market_data_engine
         self.ism = ism
 
@@ -27,19 +27,21 @@ class FundamentalRiskModel(RiskModel):
 
         exposures = self.get_factor_exposures(date, internal_ids)
         # Convert exposures to a matrix B (n_assets, n_factors)
-        sectors = sorted(
-            list(
-                set(exp.get("sector", "Unknown") for exp in exposures.values())
-            )
+        # Flatten the list of keys
+        unique_sectors = sorted(
+            list(set(s for exp in exposures.values() for s in exp.keys()))
         )
+
         n_assets = len(internal_ids)
-        n_factors = len(sectors)
+        n_factors = len(unique_sectors)
 
         b_matrix = np.zeros((n_assets, n_factors))
         for i, iid in enumerate(internal_ids):
-            sector = exposures[iid].get("sector", "Unknown")
-            j = sectors.index(sector)
-            b_matrix[i, j] = 1.0
+            asset_exp = exposures[iid]
+            for sector, val in asset_exp.items():
+                if sector in unique_sectors:
+                    j = unique_sectors.index(sector)
+                    b_matrix[i, j] = val
 
         # Simplified: assume factor covariance is identity
         # (uncorrelated sectors) and specific risk is some constant.
@@ -68,8 +70,11 @@ class PCARiskModel(RiskModel):
     """
 
     def __init__(
-        self, market_data_engine, window_days: int = 252, n_factors: int = 5
-    ):
+        self,
+        market_data_engine: Any,
+        window_days: int = 252,
+        n_factors: int = 5,
+    ) -> None:
         self.market_data_engine = market_data_engine
         self.window_days = window_days
         self.n_factors = n_factors
@@ -128,7 +133,7 @@ class PCARiskModel(RiskModel):
 
 
 class RiskProvider(RiskModel):
-    def __init__(self, storage_path: str = "data/risk"):
+    def __init__(self, storage_path: str = "data/risk") -> None:
         self.storage_path = storage_path
         os.makedirs(self.storage_path, exist_ok=True)
 
@@ -187,7 +192,7 @@ class RollingWindowRiskModel(RiskModel):
     Calculates covariance from historical market data.
     """
 
-    def __init__(self, market_data_engine, window_days: int = 60):
+    def __init__(self, market_data_engine: Any, window_days: int = 60) -> None:
         self.market_data_engine = market_data_engine
         self.window_days = window_days
 

@@ -64,7 +64,7 @@ class OrderManagementSystem:
                     order["status"] = OrderStatus.PARTIALLY_FILLED
                 break
 
-    def reconcile(self, broker_positions: Dict[int, float]):
+    def reconcile(self, broker_positions: Dict[int, float]) -> None:
         """
         Compares internal positions with broker state and logs discrepancies.
         """

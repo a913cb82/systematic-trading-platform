@@ -7,11 +7,11 @@ logger = setup_logging()
 
 
 class Monitor:
-    def __init__(self):
+    def __init__(self) -> None:
         self.heartbeats: Dict[str, datetime] = {}
         self.alerts: List[Dict[str, Any]] = []
 
-    def heartbeat(self, component_name: str):
+    def heartbeat(self, component_name: str) -> None:
         """
         Records a heartbeat for a component.
         """
@@ -23,7 +23,7 @@ class Monitor:
         level: str,
         message: str,
         metadata: Optional[Dict[str, Any]] = None,
-    ):
+    ) -> None:
         """
         Logs an alert and stores it.
         """

@@ -20,7 +20,7 @@ from src.portfolio.publisher import TargetWeightPublisher
 
 
 class TestLiveRunner(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.tmp_dir = tempfile.mkdtemp()
         self.market_path = os.path.join(self.tmp_dir, "market")
         self.event_path = os.path.join(self.tmp_dir, "event")
@@ -57,10 +57,10 @@ class TestLiveRunner(unittest.TestCase):
             self.internal_ids,
         )
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         shutil.rmtree(self.tmp_dir)
 
-    def test_on_live_bar_flow(self):
+    def test_on_live_bar_flow(self) -> None:
         """
         Tests that receiving a live bar triggers the expected pipeline.
         """

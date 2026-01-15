@@ -16,7 +16,7 @@ class ForecastPublisher:
             Callable[[datetime, Dict[int, float]], None]
         ] = []
 
-    def _init_db(self):
+    def _init_db(self) -> None:
         db_dir = os.path.dirname(self.db_path)
 
         if db_dir:

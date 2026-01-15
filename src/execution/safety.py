@@ -47,7 +47,7 @@ class SafetyLayer:
         self.message_timestamps.append(now)
         return True
 
-    def update_pnl(self, current_equity: float):
+    def update_pnl(self, current_equity: float) -> None:
         """
         Updates the kill-switch state based on current equity.
         """

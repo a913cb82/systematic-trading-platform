@@ -2,23 +2,24 @@ import os
 import shutil
 import unittest
 from datetime import datetime
+from typing import List
 
 from src.common.types import Bar
 from src.data.market_data import MarketDataEngine
 
 
 class TestMarketDataEngine(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.test_dir = "test_market_data"
         if os.path.exists(self.test_dir):
             shutil.rmtree(self.test_dir)
         self.engine = MarketDataEngine(self.test_dir)
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         if os.path.exists(self.test_dir):
             shutil.rmtree(self.test_dir)
 
-    def test_write_and_read_bars(self):
+    def test_write_and_read_bars(self) -> None:
         bars = [
             Bar(
                 internal_id=1,
@@ -65,10 +66,10 @@ class TestMarketDataEngine(unittest.TestCase):
         )
         self.assertEqual(len(all_read_bars), 3)
 
-    def test_subscribe_bars(self):
-        received_bars = []
+    def test_subscribe_bars(self) -> None:
+        received_bars: List[Bar] = []
 
-        def on_bar(bar):
+        def on_bar(bar: Bar) -> None:
             received_bars.append(bar)
 
         self.engine.subscribe_bars([1], on_bar)
@@ -99,7 +100,7 @@ class TestMarketDataEngine(unittest.TestCase):
         self.assertEqual(len(received_bars), 1)
         self.assertEqual(received_bars[0]["internal_id"], 1)
 
-    def test_get_universe(self):
+    def test_get_universe(self) -> None:
         bars = [
             Bar(
                 internal_id=1,
@@ -129,7 +130,7 @@ class TestMarketDataEngine(unittest.TestCase):
         self.assertIn(3, universe)
         self.assertEqual(len(universe), 2)
 
-    def test_bitemporal_bars(self):
+    def test_bitemporal_bars(self) -> None:
         # Initial version of a bar
         bar_v1 = Bar(
             internal_id=1,

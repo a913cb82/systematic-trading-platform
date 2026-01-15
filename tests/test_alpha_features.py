@@ -12,7 +12,7 @@ from src.data.market_data import MarketDataEngine
 
 
 class TestFeatureStore(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.market_dir = "test_market_features"
         self.event_dir = "test_event_features"
         if os.path.exists(self.market_dir):
@@ -24,13 +24,13 @@ class TestFeatureStore(unittest.TestCase):
         self.event_store = EventStore(self.event_dir)
         self.feature_store = FeatureStore(self.market_data, self.event_store)
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         if os.path.exists(self.market_dir):
             shutil.rmtree(self.market_dir)
         if os.path.exists(self.event_dir):
             shutil.rmtree(self.event_dir)
 
-    def test_cycle_feature(self):
+    def test_cycle_feature(self) -> None:
         # Write some bars
         bars = []
         for i in range(10):
@@ -58,7 +58,7 @@ class TestFeatureStore(unittest.TestCase):
         self.assertTrue(np.isnan(features.iloc[0]["feature"]))
         self.assertGreater(features.iloc[1]["feature"], 0)
 
-    def test_event_feature(self):
+    def test_event_feature(self) -> None:
         events = [
             Event(
                 internal_id=1,

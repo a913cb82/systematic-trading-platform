@@ -2,7 +2,7 @@ import logging
 import time
 from typing import List
 
-from .alpha.model import AlphaModel
+from .common.base import AlphaModel
 from .common.monitoring import monitor
 from .common.types import Bar
 from .data.live_provider import LiveDataProvider
@@ -20,7 +20,7 @@ class LiveRunner:
         alpha_model: AlphaModel,
         portfolio_manager: PortfolioManager,
         internal_ids: List[int],
-    ):
+    ) -> None:
         self.live_provider = live_provider
         self.market_data_engine = market_data_engine
         self.alpha_model = alpha_model
@@ -28,7 +28,7 @@ class LiveRunner:
         self.internal_ids = internal_ids
         self.running = False
 
-    def start(self):
+    def start(self) -> None:
         """
         Starts the live trading loop.
         """
@@ -62,7 +62,7 @@ class LiveRunner:
         except KeyboardInterrupt:
             self.stop()
 
-    def _on_live_bar(self, bar: Bar):
+    def _on_live_bar(self, bar: Bar) -> None:
         """
         Core callback for live data ingestion.
         """
@@ -87,7 +87,7 @@ class LiveRunner:
                 "ERROR", f"Failed to process live bar: {e}", {"bar": bar}
             )
 
-    def stop(self):
+    def stop(self) -> None:
         logger.info("Stopping Live Runner...")
         self.running = False
         self.live_provider.disconnect()

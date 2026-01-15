@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Callable, Dict
+from typing import Any, Callable, Dict
 
 from ..common.types import Trade
 
@@ -39,7 +39,7 @@ class MockBrokerGateway(BrokerGateway):
     Simulates a broker gateway for testing.
     """
 
-    def __init__(self, execution_engine):
+    def __init__(self, execution_engine: Any) -> None:
         self.execution_engine = execution_engine
         self.positions: Dict[int, float] = {}
         self.order_id_counter = 0

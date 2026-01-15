@@ -4,14 +4,14 @@ from src.alpha.processing import SignalProcessor
 
 
 class TestSignalProcessor(unittest.TestCase):
-    def test_winsorize(self):
+    def test_winsorize(self) -> None:
         forecasts = {1: 10.0, 2: -5.0, 3: 0.5}
         winsorized = SignalProcessor.winsorize(forecasts, limit=3.0)
         self.assertEqual(winsorized[1], 3.0)
         self.assertEqual(winsorized[2], -3.0)
         self.assertEqual(winsorized[3], 0.5)
 
-    def test_apply_decay(self):
+    def test_apply_decay(self) -> None:
         initial_val = 1.0
         half_life = 10.0
 

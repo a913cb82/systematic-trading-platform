@@ -10,7 +10,7 @@ from src.data.market_data import MarketDataEngine
 
 
 class TestAlphaModel(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.market_dir = "test_market_alpha"
         self.event_dir = "test_event_alpha"
         if os.path.exists(self.market_dir):
@@ -23,13 +23,13 @@ class TestAlphaModel(unittest.TestCase):
         self.internal_ids = [1]
         self.model = MeanReversionModel(self.mde, self.internal_ids)
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         if os.path.exists(self.market_dir):
             shutil.rmtree(self.market_dir)
         if os.path.exists(self.event_dir):
             shutil.rmtree(self.event_dir)
 
-    def test_mean_reversion_forecast(self):
+    def test_mean_reversion_forecast(self) -> None:
         # Write bars: price going up
         bars = [
             Bar(
@@ -47,7 +47,7 @@ class TestAlphaModel(unittest.TestCase):
                 timestamp=datetime(2023, 1, 2),
                 timestamp_knowledge=datetime(2023, 1, 2),
                 open=100.0,
-                high=102.0,
+                high=106.0,
                 low=100.0,
                 close=105.0,
                 volume=1000.0,

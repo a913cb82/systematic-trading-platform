@@ -22,7 +22,7 @@ from src.portfolio.risk import RollingWindowRiskModel
 
 
 class TestInitialization(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.tmp_dir = tempfile.mkdtemp()
         self.db_path = os.path.join(self.tmp_dir, "trading_system.db")
         self.market_path = os.path.join(self.tmp_dir, "market")
@@ -32,10 +32,10 @@ class TestInitialization(unittest.TestCase):
             self.tmp_dir, "target_weights.db"
         )
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         shutil.rmtree(self.tmp_dir)
 
-    def test_full_system_instantiation(self):
+    def test_full_system_instantiation(self) -> None:
         """
         Tests that all components from main.py can be instantiated and linked.
         This would catch NameErrors (like missing Optional import).

@@ -18,7 +18,7 @@ This document outlines the roadmap for building the systematic trading system. W
 ### Tasks
 - [x] **Implement ISM:** Create the service to assign and manage immutable `Internal_ID`s.
 - [x] **Symbology Service:** Build logic to map external tickers to `Internal_ID`.
-- [ ] **Market Data Engine:** Set up Parquet storage for cycle-based (bars/ticks) data.
+- [x] **Market Data Engine:** Set up Parquet storage for cycle-based (bars/ticks) data.
   - [x] Initial Parquet implementation.
   - [x] Implement dynamic price adjustment (Ratio/Raw) in `get_bars`.
 - [x] **Bitemporal Query Layer:** Implement the abstract access layer handling 'Event' vs 'Knowledge' timestamps to prevent look-ahead bias.
@@ -53,7 +53,7 @@ This document outlines the roadmap for building the systematic trading system. W
 - [x] **Risk Model:** Implement structured factor models (e.g., PCA or Fundamental) to produce covariance matrices.
 - [x] **The Optimizer:** Build the QP solver using `CVXPY` to maximize $U = \text{Forecast} - \text{Risk Penalty} - \text{Transaction Costs}$.
   - [x] Initial Cvxpy implementation.
-  - [x] Reconstruct Total Expected Return from residuals and factor returns.
+  - [x] Reconstruct Total Expected Return ($\mu$) from residuals and factor returns.
 - [x] **Constraints:** Implement soft constraints for leverage, position limits, and turnover.
   - [x] Hard constraints implementation.
   - [x] Refactor Hard Constraints into Soft Penalties for solver robustness.
@@ -86,7 +86,7 @@ This document outlines the roadmap for building the systematic trading system. W
 - [x] **Returns Engine:** Implement `get_returns` supporting both Raw and Residual (factor-neutral) calculations.
 
 ### Alpha Research Compliance
-- [x] **Residual Forecasting:** Refactor `MeanReversionModel` to explicitly target idiosyncratic movement.
+- [x] **Residual Forecasting:** Refactor `MeanReversionModel` to explicitly target idiosyncratic movement ($\epsilon$).
 - [x] **Processing Enhancements:** Add `winsorize` and `apply_decay` to `SignalProcessor`.
 
 ### Portfolio & Risk Compliance
@@ -121,17 +121,17 @@ This document outlines the roadmap for building the systematic trading system. W
 **Goal:** Enhance Developer Experience (DX) and system strictness.
 
 ### Extensibility & DX
-- [ ] **Feature Registry:** Implement decorator-based registry (`@register_feature`) to allow extensibility without editing core `FeatureStore`.
-- [ ] **Simplified Alpha API:** Implement a high-level wrapper so users only need to implement `on_cycle(self, datetime, modelstate)`.
-- [ ] **Standardized Model State:** Define a robust `ModelState` (OHLCV + Positions + Features) to pass to models.
-- [ ] **Residual returns usage:** Ensure `get_returns` (RESIDUAL) is used throughout the demo model code.
+- [x] **Feature Registry:** Implement decorator-based registry (`@register_feature`) to allow extensibility without editing core `FeatureStore`.
+- [x] **Simplified Alpha API:** Implement a high-level wrapper so users only need to implement `on_cycle(self, datetime, modelstate)`.
+- [x] **Standardized Model State:** Define a robust `ModelState` (OHLCV + Positions + Features) to pass to models.
+- [x] **Residual returns usage:** Ensure `get_returns` (RESIDUAL) is used throughout the demo model code.
 
 ### Robustness & Data Quality
-- [ ] **Strict Mypy Enforcement:** Enable `disallow_untyped_defs` and `warn_unused_ignores` in `pyproject.toml`.
-- [ ] **Data Ingestion Validation:** Implement schema enforcement and "bad print" filtering for incoming market data.
-- [ ] **Validated Configuration:** Use Pydantic or basic dataclass mapping for `config.yaml` validation.
-- [ ] **Synthetic Gap Filler:** Implement policy-based forward-filling for missing bars in live data feeds.
-- [ ] **Real Data Source:** Link up market data to one real data source providing free market data at some intraday frequency with no API key requirements.
+- [x] **Strict Mypy Enforcement:** Enable `disallow_untyped_defs` and `warn_unused_ignores` in `pyproject.toml`.
+- [x] **Data Ingestion Validation:** Implement schema enforcement and "bad print" filtering for incoming market data.
+- [x] **Validated Configuration:** Use basic dataclass mapping for `config.yaml` validation.
+- [x] **Synthetic Gap Filler:** Implement policy-based forward-filling for missing bars in live data feeds.
+- [x] **Real Data Source:** Link up market data to **Alpaca** providing free market data at some intraday frequency.
 
 ---
 
@@ -173,6 +173,7 @@ class Event(TypedDict):
 - `def get_bars(internal_ids: list[int], start: datetime, end: datetime, adjustment: str, as_of: datetime = None) -> list[Bar]`
 - `def subscribe_bars(internal_ids: list[int], on_bar: Callable[[Bar], None]) -> None`
 - `def get_universe(date: datetime) -> list[int]`
+- `def get_returns(internal_ids: list[int], date_range: tuple[datetime, datetime], type: str = "RAW", as_of: datetime = None, risk_model: Any = None) -> Any`
 
 ### 2. Event Data Interface (WS1)
 *Control Flow:* Similar to market data, but for aperiodic events.

@@ -4,6 +4,7 @@ import time
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional
 
+from ..common.base import RiskModel
 from ..common.types import Bar
 from .live_provider import LiveDataProvider
 
@@ -13,7 +14,7 @@ class MockLiveProvider(LiveDataProvider):
     Simulates a live data provider by generating random price movements.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.internal_ids: List[int] = []
         self.callbacks: List[Callable[[Bar], None]] = []
         self.last_bars: Dict[int, Bar] = {}
@@ -45,7 +46,7 @@ class MockLiveProvider(LiveDataProvider):
         if self.thread:
             self.thread.join(timeout=1.0)
 
-    def write_bars(self, data: List[Bar]) -> None:
+    def write_bars(self, data: List[Bar], fill_gaps: bool = False) -> None:
         pass
 
     def get_bars(
@@ -64,10 +65,10 @@ class MockLiveProvider(LiveDataProvider):
     def get_returns(
         self,
         internal_ids: List[int],
-        start: datetime,
-        end: datetime,
+        date_range: tuple[datetime, datetime],
         type: str = "RAW",
         as_of: Optional[datetime] = None,
+        risk_model: Optional[RiskModel] = None,
     ) -> Any:
         return None
 
@@ -85,7 +86,7 @@ class MockLiveProvider(LiveDataProvider):
             "sell_volume": random.uniform(500, 2500),
         }
 
-    def _generate_data(self):
+    def _generate_data(self) -> None:
         while self.running:
             time.sleep(1.0)  # Generate data every second
             for iid in self.internal_ids:

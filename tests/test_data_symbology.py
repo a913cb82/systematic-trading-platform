@@ -7,18 +7,18 @@ from src.data.symbology import SymbologyService
 
 
 class TestSymbologyService(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.db_path = "test_symbology.db"
         if os.path.exists(self.db_path):
             os.remove(self.db_path)
         self.ism = InternalSecurityMaster(self.db_path)
         self.service = SymbologyService(self.ism)
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         if os.path.exists(self.db_path):
             os.remove(self.db_path)
 
-    def test_multi_id_mapping(self):
+    def test_multi_id_mapping(self) -> None:
         # Register security
         start_date = datetime(2020, 1, 1)
         internal_id = self.ism.register_security("AAPL", "NASDAQ", start_date)
@@ -51,7 +51,7 @@ class TestSymbologyService(unittest.TestCase):
         self.assertEqual(all_ids["FIGI"], "BBG000B9XRY4")
         self.assertEqual(all_ids["ISIN"], "US0378331005")
 
-    def test_ticker_lookup(self):
+    def test_ticker_lookup(self) -> None:
         start_date = datetime(2020, 1, 1)
         internal_id = self.ism.register_security("TSLA", "NASDAQ", start_date)
 

@@ -7,7 +7,7 @@ from src.alpha.backtest_vectorized import VectorizedBacktester
 
 
 class TestVectorizedBacktester(unittest.TestCase):
-    def test_backtest_run(self):
+    def test_backtest_run(self) -> None:
         timestamps = [datetime(2023, 1, i) for i in range(1, 6)]
 
         # Returns: 1% every day for ID 1

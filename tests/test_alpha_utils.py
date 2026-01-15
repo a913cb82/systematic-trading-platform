@@ -8,7 +8,7 @@ from src.alpha.publisher import ForecastPublisher
 
 
 class TestAlphaUtils(unittest.TestCase):
-    def test_processing(self):
+    def test_processing(self) -> None:
         forecasts = {1: 1.0, 2: 2.0, 3: 3.0}
         z = SignalProcessor.z_score(forecasts)
         self.assertAlmostEqual(z[1], -1.224744871391589)
@@ -20,14 +20,14 @@ class TestAlphaUtils(unittest.TestCase):
         self.assertEqual(w[2], -3.0)
         self.assertEqual(w[3], 0.0)
 
-    def test_combiner(self):
+    def test_combiner(self) -> None:
         f1 = {1: 1.0, 2: 0.0}
         f2 = {1: 0.5, 2: 1.0}
         combined = SignalCombiner.equal_weight([f1, f2])
         self.assertEqual(combined[1], 0.75)
         self.assertEqual(combined[2], 0.5)
 
-    def test_publisher(self):
+    def test_publisher(self) -> None:
         db_path = "test_forecasts.db"
         if os.path.exists(db_path):
             os.remove(db_path)

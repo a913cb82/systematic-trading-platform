@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, cast
 
 import numpy as np
 import pandas as pd
@@ -18,7 +18,7 @@ class EventDrivenBacktester:
         end_date: datetime,
         initial_capital: float = 1_000_000.0,
         transaction_cost_bps: float = 5.0,
-    ):
+    ) -> None:
         self.market_data = market_data
         self.alpha_model = alpha_model
         self.optimizer = optimizer
@@ -34,7 +34,7 @@ class EventDrivenBacktester:
         self.trades: List[Trade] = []
         self.current_prices: Dict[int, float] = {}
 
-    def run(self):
+    def run(self) -> None:
         universe = self.market_data.get_universe(self.start_date)
         # Fetch all bars for the period
         bars = self.market_data.get_bars(
@@ -49,9 +49,9 @@ class EventDrivenBacktester:
 
         # Group bars by timestamp to simulate discrete time steps
         for ts, group in df_bars.groupby("timestamp"):
-            self._step(ts, group)
+            self._step(cast(datetime, ts), group)
 
-    def _step(self, timestamp: datetime, current_bars: pd.DataFrame):
+    def _step(self, timestamp: datetime, current_bars: pd.DataFrame) -> None:
         # 1. Update current prices (as of this timestamp)
         for _, row in current_bars.iterrows():
             self.current_prices[row["internal_id"]] = row["close"]
@@ -89,7 +89,7 @@ class EventDrivenBacktester:
         timestamp: datetime,
         target_weights: Dict[int, float],
         total_equity: float,
-    ):
+    ) -> None:
         # Target weight -> Target value -> Target shares
         target_shares = {}
         for iid, weight in target_weights.items():

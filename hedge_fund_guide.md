@@ -266,7 +266,7 @@ The engine must enforce Point-in-Time (PIT) consistency throughout the simulatio
 2. **Fundamental/Alternative Data:** Any feature derived from restated data (e.g., earnings) must be mapped to its Knowledge Time ($T_{knowledge}$) and must only be visible in the simulation after $T_{knowledge}$.
 
 $$\text{Feature}_{\text{simulated}} = \text{Feature}_{\text{actual}} \quad \text{ONLY IF} \quad T_{\text{sim}} \ge T_{\text{knowledge}}$$
-   
+
 3. **Universe:** The set of tradable assets must be defined by the Point-in-Time Universe Table (Section I.1.C).
 
 ### C. Full Portfolio Simulation Loop

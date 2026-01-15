@@ -15,7 +15,7 @@ from src.portfolio.publisher import TargetWeightPublisher
 
 
 class TestExecution(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.tmp_dir = tempfile.mkdtemp()
         self.db_path = os.path.join(self.tmp_dir, "weights.db")
         self.market_path = os.path.join(self.tmp_dir, "market")
@@ -32,10 +32,10 @@ class TestExecution(unittest.TestCase):
             safety_layer=self.safety,
         )
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         shutil.rmtree(self.tmp_dir)
 
-    def test_oms_execution_flow(self):
+    def test_oms_execution_flow(self) -> None:
         timestamp = datetime(2023, 1, 1, 10, 0)
 
         # Mock market data for the algo to find a price
@@ -66,7 +66,7 @@ class TestExecution(unittest.TestCase):
         self.assertEqual(fills[0]["internal_id"], 1)
         self.assertEqual(fills[0]["price"], 150.0)
 
-    def test_safety_check_rejection(self):
+    def test_safety_check_rejection(self) -> None:
         timestamp = datetime(2023, 1, 1, 10, 0)
 
         # Submit weight exceeding safety limit (max_weight=0.5)

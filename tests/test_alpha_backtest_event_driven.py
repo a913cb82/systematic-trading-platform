@@ -13,7 +13,7 @@ from src.portfolio.optimizer import SimpleOptimizer
 
 
 class TestEventDrivenBacktester(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.test_dir = "test_backtest_data"
         if os.path.exists(self.test_dir):
             shutil.rmtree(self.test_dir)
@@ -25,11 +25,11 @@ class TestEventDrivenBacktester(unittest.TestCase):
         self.feature_store = FeatureStore(self.market_data, self.event_store)
         self.optimizer = SimpleOptimizer()
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         if os.path.exists(self.test_dir):
             shutil.rmtree(self.test_dir)
 
-    def test_backtest_run(self):
+    def test_backtest_run(self) -> None:
         # 1. Create fake data: 10 days of prices
         start_date = datetime(2023, 1, 1)
         bars = []

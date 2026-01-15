@@ -15,7 +15,7 @@ from src.portfolio.risk import RollingWindowRiskModel
 
 
 class TestPortfolioManager(unittest.TestCase):
-    def test_portfolio_manager_flow(self):
+    def test_portfolio_manager_flow(self) -> None:
         tmp_dir = tempfile.mkdtemp()
         try:
             # Setup

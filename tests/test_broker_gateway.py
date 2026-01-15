@@ -7,7 +7,7 @@ from src.execution.engine import SimulatedExecutionEngine
 
 
 class TestBrokerGateway(unittest.TestCase):
-    def test_mock_broker_flow(self):
+    def test_mock_broker_flow(self) -> None:
         # We don't need real market data for the mock gateway logic test
         mde = MarketDataEngine()
         algo = ExecutionAlgorithm(mde)

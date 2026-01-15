@@ -7,17 +7,17 @@ from src.data.corporate_actions import CorporateActionMaster
 
 
 class TestCorporateActionMaster(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.db_path = "test_ca.db"
         if os.path.exists(self.db_path):
             os.remove(self.db_path)
         self.master = CorporateActionMaster(self.db_path)
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         if os.path.exists(self.db_path):
             os.remove(self.db_path)
 
-    def test_write_and_read_actions(self):
+    def test_write_and_read_actions(self) -> None:
         actions = [
             CorporateAction(
                 internal_id=1,

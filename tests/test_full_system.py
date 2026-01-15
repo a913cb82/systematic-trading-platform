@@ -18,7 +18,7 @@ from src.portfolio.risk import RollingWindowRiskModel
 
 
 class TestFullSystem(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.tmp_dir = tempfile.mkdtemp()
         self.market_path = os.path.join(self.tmp_dir, "market")
         self.event_path = os.path.join(self.tmp_dir, "event")
@@ -27,10 +27,10 @@ class TestFullSystem(unittest.TestCase):
         self.event_store = EventStore(self.event_path)
         self.feature_store = FeatureStore(self.mde, self.event_store)
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         shutil.rmtree(self.tmp_dir)
 
-    def test_full_backtest_run(self):
+    def test_full_backtest_run(self) -> None:
         # 1. Generate dummy market data for 2 assets
         # Asset 1: Mean reverting around 100
         # Asset 2: Mean reverting around 200

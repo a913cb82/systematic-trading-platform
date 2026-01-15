@@ -8,17 +8,17 @@ from src.data.event_store import EventStore
 
 
 class TestEventStore(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.test_dir = "test_events"
         if os.path.exists(self.test_dir):
             shutil.rmtree(self.test_dir)
         self.store = EventStore(self.test_dir)
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         if os.path.exists(self.test_dir):
             shutil.rmtree(self.test_dir)
 
-    def test_write_and_read_events(self):
+    def test_write_and_read_events(self) -> None:
         events = [
             Event(
                 internal_id=1,
@@ -45,7 +45,7 @@ class TestEventStore(unittest.TestCase):
         self.assertEqual(read_events[0]["type"], "EARNINGS")
         self.assertEqual(read_events[0]["value"]["eps"], 1.25)
 
-    def test_bitemporal_events(self):
+    def test_bitemporal_events(self) -> None:
         # Initial news event
         ev1 = Event(
             internal_id=1,

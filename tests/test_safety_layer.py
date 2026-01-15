@@ -4,7 +4,7 @@ from src.execution.safety import SafetyLayer
 
 
 class TestSafetyLayer(unittest.TestCase):
-    def test_rate_limiting(self):
+    def test_rate_limiting(self) -> None:
         safety = SafetyLayer(max_messages_per_second=2)
 
         # First two should pass
@@ -19,7 +19,7 @@ class TestSafetyLayer(unittest.TestCase):
         self.assertFalse(res3)
         self.assertIn("rate limit", msg3)
 
-    def test_kill_switch(self):
+    def test_kill_switch(self) -> None:
         safety = SafetyLayer(max_drawdown_limit=-0.01)  # 1% limit
 
         # Initial equity

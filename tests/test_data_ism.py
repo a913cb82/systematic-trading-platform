@@ -6,17 +6,17 @@ from src.data.ism import InternalSecurityMaster
 
 
 class TestInternalSecurityMaster(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.db_path = "test_ism.db"
         if os.path.exists(self.db_path):
             os.remove(self.db_path)
         self.ism = InternalSecurityMaster(self.db_path)
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         if os.path.exists(self.db_path):
             os.remove(self.db_path)
 
-    def test_registration_and_lookup(self):
+    def test_registration_and_lookup(self) -> None:
         # Register a new security
         start_date = datetime(2020, 1, 1)
         internal_id = self.ism.register_security("AAPL", "NASDAQ", start_date)
@@ -35,7 +35,7 @@ class TestInternalSecurityMaster(unittest.TestCase):
             self.assertEqual(info["ticker"], "AAPL")
             self.assertEqual(info["exchange"], "NASDAQ")
 
-    def test_ticker_change(self):
+    def test_ticker_change(self) -> None:
         # Initial registration
         internal_id = self.ism.register_security(
             "FB", "NASDAQ", datetime(2012, 5, 18)
@@ -62,13 +62,13 @@ class TestInternalSecurityMaster(unittest.TestCase):
         )
         self.assertIsNone(id_old_after)
 
-    def test_invalid_lookup(self):
+    def test_invalid_lookup(self) -> None:
         found_id = self.ism.get_internal_id(
             "INVALID", "NONE", datetime(2020, 1, 1)
         )
         self.assertIsNone(found_id)
 
-    def test_get_universe(self):
+    def test_get_universe(self) -> None:
         id1 = self.ism.register_security(
             "AAPL", "NASDAQ", datetime(2020, 1, 1)
         )

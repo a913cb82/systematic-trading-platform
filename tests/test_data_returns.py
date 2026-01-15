@@ -8,14 +8,14 @@ from src.data.market_data import MarketDataEngine
 
 
 class TestReturnsEngine(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.tmp_dir = tempfile.mkdtemp()
         self.mde = MarketDataEngine(self.tmp_dir)
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         shutil.rmtree(self.tmp_dir)
 
-    def test_raw_returns(self):
+    def test_raw_returns(self) -> None:
         # Day 1: 100
         # Day 2: 110 (10% return)
         # Day 3: 121 (10% return)
@@ -29,6 +29,9 @@ class TestReturnsEngine(unittest.TestCase):
                 Bar(
                     internal_id=internal_id,
                     timestamp=ts,
+                    open=price,
+                    high=price + 1,
+                    low=price - 1,
                     close=price,
                     volume=1000.0,
                 )
@@ -36,7 +39,7 @@ class TestReturnsEngine(unittest.TestCase):
         self.mde.write_bars(bars)
 
         returns = self.mde.get_returns(
-            [internal_id], start_date, start_date + timedelta(days=2)
+            [internal_id], (start_date, start_date + timedelta(days=2))
         )
 
         self.assertEqual(len(returns), 2)

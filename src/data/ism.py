@@ -12,7 +12,7 @@ class InternalSecurityMaster:
             os.makedirs(db_dir, exist_ok=True)
         self._init_db()
 
-    def _init_db(self):
+    def _init_db(self) -> None:
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
                 """
@@ -117,7 +117,7 @@ class InternalSecurityMaster:
 
             return internal_id
 
-    def delist_security(self, internal_id: int, end_date: datetime):
+    def delist_security(self, internal_id: int, end_date: datetime) -> None:
         end_date_str = end_date.strftime("%Y-%m-%d")
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
@@ -135,7 +135,7 @@ class InternalSecurityMaster:
         id_type: str,
         id_value: str,
         start_date: datetime,
-    ):
+    ) -> None:
         start_date_str = start_date.strftime("%Y-%m-%d")
         now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         with sqlite3.connect(self.db_path) as conn:

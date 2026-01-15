@@ -13,7 +13,7 @@ __pycache__/
 .python-version
 
 # Data
-data/
+/data/
 *.db
 *.parquet
 *.csv

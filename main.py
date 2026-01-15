@@ -22,7 +22,7 @@ from src.portfolio.publisher import TargetWeightPublisher
 from src.portfolio.risk import RollingWindowRiskModel
 
 
-def main():
+def main() -> None:
     setup_logging(level=logging.INFO)
     logger = logging.getLogger("main")
 
