@@ -2,10 +2,11 @@ import sqlite3
 import os
 from datetime import datetime
 from typing import Dict, List, Callable, Optional
+from ..common.config import config
 
 class TargetWeightPublisher:
-    def __init__(self, db_path: str = "data/target_weights.db"):
-        self.db_path = db_path
+    def __init__(self, db_path: Optional[str] = None):
+        self.db_path = db_path or config.get("data.target_weights_db", "data/target_weights.db")
         self._init_db()
         self._subscribers: List[Callable[[datetime, Dict[int, float]], None]] = []
 

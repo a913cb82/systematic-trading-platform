@@ -4,11 +4,12 @@ from datetime import datetime
 from typing import List, Optional, Callable, Any
 from ..common.types import Bar
 from ..common.base import MarketDataProvider
+from ..common.config import config
 
 class MarketDataEngine(MarketDataProvider):
-    def __init__(self, base_path: str = "data/market"):
-        self.base_path = base_path
-        self.bars_path = os.path.join(base_path, "bars")
+    def __init__(self, base_path: Optional[str] = None):
+        self.base_path = base_path or config.get("data.market_path", "data/market")
+        self.bars_path = os.path.join(self.base_path, "bars")
         os.makedirs(self.bars_path, exist_ok=True)
         self._subscribers: List[tuple[List[int], Callable[[Bar], None]]] = []
 

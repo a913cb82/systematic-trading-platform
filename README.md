@@ -50,3 +50,11 @@ To run a specific test file:
 source .venv/bin/activate
 pytest tests/test_portfolio_manager.py
 ```
+
+## Quick Start (Live Simulation)
+To start the live trading simulation (ingestion, alpha, portfolio, and execution):
+```bash
+source .venv/bin/activate
+python main.py
+```
+This will initialize a mock live provider and run the end-to-end pipeline in real-time.

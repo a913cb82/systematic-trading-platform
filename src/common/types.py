@@ -10,6 +10,8 @@ class Bar(TypedDict):
     low: float
     close: float
     volume: float
+    buy_volume: float
+    sell_volume: float
 
 class Trade(TypedDict):
     internal_id: int

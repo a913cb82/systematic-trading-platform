@@ -3,6 +3,7 @@ from typing import Dict, List
 import numpy as np
 import cvxpy as cp
 from ..common.base import PortfolioOptimizer, RiskModel
+from ..common.config import config
 
 class SimpleOptimizer(PortfolioOptimizer):
     def optimize(self, timestamp: datetime, forecasts: Dict[int, float], current_weights: Dict[int, float] | None = None) -> Dict[int, float]:
@@ -21,12 +22,17 @@ class SimpleOptimizer(PortfolioOptimizer):
         return {iid: s / total_signal for iid, s in forecasts.items()}
 
 class CvxpyOptimizer(PortfolioOptimizer):
-    def __init__(self, risk_model: RiskModel, lambda_risk: float = 1.0, 
-                 max_position: float = 1.0, max_turnover: float = 1.0):
+    def __init__(self, risk_model: RiskModel, lambda_risk: float | None = None, 
+                 max_position: float | None = None, max_turnover: float | None = None,
+                 market_impact_coeff: float = 0.1,
+                 lambda_sector: float = 0.0, lambda_market: float = 0.0):
         self.risk_model = risk_model
-        self.lambda_risk = lambda_risk
-        self.max_position = max_position
-        self.max_turnover = max_turnover
+        self.lambda_risk = lambda_risk if lambda_risk is not None else config.get("portfolio.risk_aversion", 1.0)
+        self.max_position = max_position if max_position is not None else config.get("portfolio.max_position", 1.0)
+        self.max_turnover = max_turnover if max_turnover is not None else config.get("portfolio.max_turnover", 1.0)
+        self.market_impact_coeff = market_impact_coeff
+        self.lambda_sector = lambda_sector
+        self.lambda_market = lambda_market
 
     def optimize(self, timestamp: datetime, forecasts: Dict[int, float], 
                  current_weights: Dict[int, float] | None = None) -> Dict[int, float]:
@@ -52,22 +58,51 @@ class CvxpyOptimizer(PortfolioOptimizer):
         # Objective: Maximize w^T * mu - 0.5 * lambda * w^T * Sigma * w
         risk = cp.quad_form(w, cov_matrix)
         
-        # Transaction costs (simplified as linear turnover penalty)
+        # Linear Transaction costs (turnover penalty)
         turnover = cp.norm(w - w_prev, 1)
         
+        # Non-linear Market Impact (Square Root Law proxy: power 1.5)
+        impact = cp.sum(cp.power(cp.abs(w - w_prev), 1.5))
+        
+        # Soft constraints penalties
+        soft_penalties = 0
+        
+        # Market Neutrality (Net Exposure target 0)
+        if self.lambda_market > 0:
+            soft_penalties += self.lambda_market * cp.square(cp.sum(w))
+            
+        # Sector Neutrality
+        if self.lambda_sector > 0:
+            exposures = self.risk_model.get_factor_exposures(timestamp, internal_ids)
+            sectors = sorted(list(set(exp.get('sector', 'Unknown') for exp in exposures.values())))
+            for sector in sectors:
+                # Exposure to this sector
+                exp_vec = np.array([1.0 if exposures[iid].get('sector') == sector else 0.0 for iid in internal_ids])
+                soft_penalties += self.lambda_sector * cp.square(w @ exp_vec)
+
         # Objective function
-        objective = cp.Maximize(w @ mu - 0.5 * self.lambda_risk * risk - 0.01 * turnover)
+        objective = cp.Maximize(w @ mu 
+                                - 0.5 * self.lambda_risk * risk 
+                                - 0.01 * turnover 
+                                - self.market_impact_coeff * impact
+                                - soft_penalties)
         
         # Constraints
-        constraints = [
-            cp.sum(w) == 1,
-            w >= 0,
-            w <= self.max_position
-        ]
-        
-        # Hard turnover constraint if requested
-        if self.max_turnover < 1.0:
-            constraints.append(turnover <= self.max_turnover)
+        # Note: If market neutral is requested, sum(w) == 1 might be wrong.
+        # Usually market neutral means sum(w) == 0.
+        # Let's adjust based on lambda_market.
+        if self.lambda_market > 0:
+            constraints = [
+                w >= -self.max_position,
+                w <= self.max_position,
+                cp.norm(w, 1) <= 2.0 # Limit gross leverage to 200%
+            ]
+        else:
+            constraints = [
+                cp.sum(w) == 1,
+                w >= 0,
+                w <= self.max_position
+            ]
         
         prob = cp.Problem(objective, constraints)
         try:

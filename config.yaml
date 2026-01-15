@@ -1,0 +1,15 @@
+data:
+  base_path: "data"
+  market_path: "data/market"
+  event_path: "data/event"
+  forecast_db: "data/forecasts.db"
+  target_weights_db: "data/target_weights.db"
+
+portfolio:
+  risk_aversion: 1.0
+  max_position: 1.0
+  max_turnover: 1.0
+
+execution:
+  simulated: true
+  transaction_cost_bps: 5.0

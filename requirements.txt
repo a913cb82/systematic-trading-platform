@@ -4,3 +4,6 @@ numpy
 cvxpy
 scipy
 pytest
+PyYAML
+python-dotenv
+scikit-learn

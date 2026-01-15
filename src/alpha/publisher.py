@@ -1,10 +1,11 @@
 import sqlite3
 from datetime import datetime
 from typing import Dict, Optional, List, Callable
+from ..common.config import config
 
 class ForecastPublisher:
-    def __init__(self, db_path: str = "data/forecasts.db"):
-        self.db_path = db_path
+    def __init__(self, db_path: Optional[str] = None):
+        self.db_path = db_path or config.get("data.forecast_db", "data/forecasts.db")
         self._init_db()
         self._subscribers: List[Callable[[datetime, Dict[int, float]], None]] = []
 

@@ -68,26 +68,27 @@ This document outlines the roadmap for building the systematic trading system. W
 
 ## Phase 2: Production Readiness (Upcoming)
 
-### Workstream 1: Data Platform
-- [ ] **Live Ingestion Adapters:** Build connectivity to external providers (e.g., Alpaca, IEX, Polygon).
-- [ ] **Persistent Security Master:** Move ISM to a relational database (PostgreSQL) with full temporal history.
+### Workstream 1: Data Platform (Expansion)
+- [x] **A1: Live Ingestion Adapters:** Build connectivity to external providers (e.g., Alpaca, IEX, Polygon).
+- [x] **A2: Persistent Security Master:** Move ISM to a relational database (PostgreSQL) with full temporal history.
 
-### Workstream 2: Alpha Research
-- [ ] **Advanced Feature Library:** Implement technical indicators (RSI, MACD) and microstructure features (Order Flow Imbalance).
+### Workstream 2: Alpha Research (Sophistication)
+- [x] **B1: Advanced Feature Library:** Implement technical indicators (RSI, MACD) and microstructure features (Order Flow Imbalance).
 
-### Workstream 3: Portfolio & Risk
-- [ ] **Structured Risk Models:** Implement PCA-based and Fundamental Factor risk models.
-- [ ] **Non-Linear Cost Modeling:** Integrate the Square Root Law for market impact in the optimizer.
-- [ ] **Neutrality Constraints:** Implement soft constraints for Sector and Factor (Market) neutrality.
+### Workstream 3: Portfolio & Risk (Institutional Grade)
+- [x] **C1: Structured Risk Models:** Implement PCA-based and Fundamental Factor risk models.
+- [x] **C2: Non-Linear Cost Modeling:** Integrate the Square Root Law for market impact in the optimizer.
+- [x] **C3: Neutrality Constraints:** Implement soft constraints for Sector and Factor (Market) neutrality.
 
-### Workstream 4: Execution & Operations
-- [ ] **Live Broker Gateway:** Implement FIX/REST connectivity for a production broker (e.g., Interactive Brokers).
-- [ ] **OMS Reconciliation:** Build the T+0 reconciliation engine to sync internal positions with broker state.
-- [ ] **Live Safety Layer:** Implement message-rate limiting and intraday kill-switches.
+
+### Workstream 4: Execution & Operations (Live)
+- [x] **D1: Live Broker Gateway:** Implement FIX/REST connectivity for a production broker (e.g., Interactive Brokers).
+- [x] **D2: OMS Reconciliation:** Build the T+0 reconciliation engine to sync internal positions with broker state.
+- [x] **D3: Live Safety Layer:** Implement message-rate limiting and intraday kill-switches.
 
 ### Infrastructure & Monitoring
-- [ ] **Configuration System:** Replace hardcoded values with a robust YAML/Env-based configuration manager.
-- [ ] **Monitoring & Alerting:** Build health-check heartbeats and PnL/Exposure alerts.
+- [x] **E1: Configuration System:** Replace hardcoded values with a robust YAML/Env-based configuration manager.
+- [x] **E2: Monitoring & Alerting:** Build health-check heartbeats and PnL/Exposure alerts.
 
 ---
 

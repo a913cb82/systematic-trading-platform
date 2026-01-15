@@ -29,6 +29,23 @@ class FeatureStore:
             df['feature'] = df.groupby('internal_id')['close'].pct_change()
         elif feature_name == 'sma_5':
             df['feature'] = df.groupby('internal_id')['close'].transform(lambda x: x.rolling(5).mean())
+        elif feature_name == 'rsi_14':
+            def calc_rsi(series, period=14):
+                delta = series.diff()
+                gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+                loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+                rs = gain / loss
+                return 100 - (100 / (1 + rs))
+            df['feature'] = df.groupby('internal_id')['close'].transform(calc_rsi)
+        elif feature_name == 'macd':
+            def calc_macd(series):
+                exp1 = series.ewm(span=12, adjust=False).mean()
+                exp2 = series.ewm(span=26, adjust=False).mean()
+                return exp1 - exp2
+            df['feature'] = df.groupby('internal_id')['close'].transform(calc_macd)
+        elif feature_name == 'ofi':
+            # Order Flow Imbalance proxy using buy/sell volume
+            df['feature'] = df['buy_volume'] - df['sell_volume']
         else:
             raise ValueError(f"Unknown feature: {feature_name}")
             

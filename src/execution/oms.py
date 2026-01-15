@@ -12,9 +12,47 @@ class OrderManagementSystem:
         self.execution_engine = execution_engine
         self.safety_layer = safety_layer or SafetyLayer()
         self.current_targets: Dict[int, float] = {}
+        self.internal_positions: Dict[int, float] = {} # internal_id -> shares
         
         # Subscribe to target weights
         self.weight_publisher.subscribe_target_weights(self.on_target_weights)
+        
+        # In a real system, we'd also subscribe to fills from the execution engine
+        self.execution_engine.subscribe_fills(self.on_fill)
+
+    def on_fill(self, fill: Trade) -> None:
+        """
+        Updates internal positions based on realized trades.
+        """
+        iid = fill['internal_id']
+        shares = fill['quantity'] if fill['side'] == 'BUY' else -fill['quantity']
+        self.internal_positions[iid] = self.internal_positions.get(iid, 0.0) + shares
+
+    def reconcile(self, broker_positions: Dict[int, float]):
+        """
+        Compares internal positions with broker state and logs discrepancies.
+        """
+        all_ids = set(self.internal_positions.keys()) | set(broker_positions.keys())
+        discrepancies = []
+        
+        for iid in all_ids:
+            internal = self.internal_positions.get(iid, 0.0)
+            broker = broker_positions.get(iid, 0.0)
+            if abs(internal - broker) > 1e-5:
+                discrepancies.append({
+                    "internal_id": iid,
+                    "internal": internal,
+                    "broker": broker,
+                    "diff": internal - broker
+                })
+        
+        if discrepancies:
+            print(f"RECONCILIATION DISCREPANCY: {discrepancies}")
+            # In production, we would force-update internal positions to broker state
+            for d in discrepancies:
+                self.internal_positions[d["internal_id"]] = d["broker"]
+        else:
+            print("RECONCILIATION SUCCESS: Internal and Broker positions match.")
 
     def on_target_weights(self, timestamp: datetime, weights: Dict[int, float]) -> None:
         """
