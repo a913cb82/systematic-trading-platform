@@ -1,4 +1,33 @@
+# Environments
 .venv/
+env/
+venv/
+ENV/
+
+# Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+*.so
+.python-version
+
+# Data
+data/
+*.db
+*.parquet
+*.csv
+
+# Caches and Tools
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# OS
 .DS_Store
+.directory
+
+# Local environment variables
+.env
+.env.local
