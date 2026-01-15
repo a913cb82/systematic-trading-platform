@@ -33,3 +33,20 @@ Manages the lifecycle of orders and market connectivity.
 - **Data Integrity First:** Priority is given to accurate, point-in-time data representation.
 - **Modular Architecture:** Each component is decoupled to allow for independent scaling and upgrades.
 - **Research to Production Consistency:** Ensuring that the logic used in backtesting is identical to what runs in live trading.
+
+## Development
+
+### Running Tests
+The project uses `pytest` to run tests. Some tests are written using the standard `unittest` library but are compatible with `pytest`.
+
+To run all tests:
+```bash
+source .venv/bin/activate
+pytest
+```
+
+To run a specific test file:
+```bash
+source .venv/bin/activate
+pytest tests/test_portfolio_manager.py
+```

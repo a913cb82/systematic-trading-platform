@@ -16,13 +16,13 @@ This document outlines the roadmap for building the systematic trading system. W
 **Goal:** Build the "Source of Truth" for all reference, market, and fundamental data.
 
 ### Tasks
-- [ ] **Implement ISM:** Create the service to assign and manage immutable `Internal_ID`s.
-- [ ] **Symbology Service:** Build logic to map external tickers to `Internal_ID`.
-- [ ] **Market Data Engine:** Set up Parquet storage for cycle-based (bars/ticks) data.
-- [ ] **Bitemporal Query Layer:** Implement the abstract access layer handling 'Event' vs 'Knowledge' timestamps to prevent look-ahead bias.
-- [ ] **Corporate Action Master:** Design schema and ingestion for Splits, Dividends, and Mergers to enable dynamic price adjustment.
-- [ ] **Event Store:** Design schema and ingestion for aperiodic events (Earnings, News, Macro Data).
-- [ ] **Point-in-Time Universe:** Implement logic to reconstruct tradable sets for any historical date.
+- [x] **Implement ISM:** Create the service to assign and manage immutable `Internal_ID`s.
+- [x] **Symbology Service:** Build logic to map external tickers to `Internal_ID`.
+- [x] **Market Data Engine:** Set up Parquet storage for cycle-based (bars/ticks) data.
+- [x] **Bitemporal Query Layer:** Implement the abstract access layer handling 'Event' vs 'Knowledge' timestamps to prevent look-ahead bias.
+- [x] **Corporate Action Master:** Design schema and ingestion for Splits, Dividends, and Mergers to enable dynamic price adjustment.
+- [x] **Event Store:** Design schema and ingestion for aperiodic events (Earnings, News, Macro Data).
+- [x] **Point-in-Time Universe:** Implement logic to reconstruct tradable sets for any historical date.
 
 ---
 
@@ -30,14 +30,14 @@ This document outlines the roadmap for building the systematic trading system. W
 **Goal:** Create the environment for generating signals and validating them.
 
 ### Tasks
-- [ ] **Feature Store:** Build the registry and calculation engine for `CycleFeatures` and `EventFeatures`.
-- [ ] **Alpha Generation:** Implement predictive models targeting residual returns.
-- [ ] **Signal Combiner:** Implement logic to aggregate multiple signals (e.g., Equal Weighting, Inverse Variance) into a single forecast.
-- [ ] **Forecast Publisher:** Implement the mechanism to deliver consolidated forecasts (`dict[int, float]`) to the Optimizer.
-- [ ] **Vectorized Backtester:** Build a fast, array-based simulation engine for preliminary research and optimization.
-- [ ] **Backtesting Engine:** Build an event-driven simulation loop for OOS vetting.
-- [ ] **Backtest Metrics Calculator:** Implement a tool to compute key statistics (Sharpe, Sortino, Max Drawdown) over tunable timeframes from simulation outputs.
-- [ ] **Signal Processing:** Implement Z-scoring, Winsorization, and signal decay logic.
+- [x] **Feature Store:** Build the registry and calculation engine for `CycleFeatures` and `EventFeatures`.
+- [x] **Alpha Generation:** Implement predictive models targeting residual returns.
+- [x] **Signal Combiner:** Implement logic to aggregate multiple signals (e.g., Equal Weighting, Inverse Variance) into a single forecast.
+- [x] **Forecast Publisher:** Implement the mechanism to deliver consolidated forecasts (`dict[int, float]`) to the Optimizer.
+- [x] **Vectorized Backtester:** Build a fast, array-based simulation engine for preliminary research and optimization.
+- [x] **Backtesting Engine:** Build an event-driven simulation loop for OOS vetting.
+- [x] **Backtest Metrics Calculator:** Implement a tool to compute key statistics (Sharpe, Sortino, Max Drawdown) over tunable timeframes from simulation outputs.
+- [x] **Signal Processing:** Implement Z-scoring, Winsorization, and signal decay logic.
 
 ---
 
@@ -45,11 +45,11 @@ This document outlines the roadmap for building the systematic trading system. W
 **Goal:** Translate alpha signals into an optimal portfolio.
 
 ### Tasks
-- [ ] **Forecast Subscriber:** Implement the mechanism to receive forecasts from WS2.
-- [ ] **Risk Model:** Implement structured factor models (e.g., PCA or Fundamental) to produce covariance matrices.
-- [ ] **The Optimizer:** Build the QP solver using `CVXPY` to maximize $U = \text{Forecast} - \text{Risk Penalty} - \text{Transaction Costs}$.
-- [ ] **Constraints:** Implement soft constraints for leverage, position limits, and turnover.
-- [ ] **Target Weight Publisher:** Implement the mechanism to deliver target weights (`dict[int, float]`) to WS4.
+- [x] **Forecast Subscriber:** Implement the mechanism to receive forecasts from WS2.
+- [x] **Risk Model:** Implement structured factor models (e.g., PCA or Fundamental) to produce covariance matrices.
+- [x] **The Optimizer:** Build the QP solver using `CVXPY` to maximize $U = \text{Forecast} - \text{Risk Penalty} - \text{Transaction Costs}$.
+- [x] **Constraints:** Implement soft constraints for leverage, position limits, and turnover.
+- [x] **Target Weight Publisher:** Implement the mechanism to deliver target weights (`dict[int, float]`) to WS4.
 
 ---
 
@@ -57,12 +57,12 @@ This document outlines the roadmap for building the systematic trading system. W
 **Goal:** Safely execute trades and manage the interface with the market.
 
 ### Tasks
-- [ ] **Target Weight Subscriber:** Implement the mechanism to receive target weights from WS3.
-- [ ] **OMS:** Implement the state machine for order lifecycles and broker reconciliation. Responsible for deciding specific trades based on target weights and current positions.
-- [ ] **Execution Algos:** Build VWAP, TWAP, and Implementation Shortfall algorithms.
-- [ ] **Safety Layer:** Implement pre-trade fat-finger and message-rate limits.
-- [ ] **Broker Gateway:** Build the adapter for connectivity (FIX/REST).
-- [ ] **TCA Engine:** Build the post-trade analysis module to calculate slippage, implementation shortfall, and PnL attribution.
+- [x] **Target Weight Subscriber:** Implement the mechanism to receive target weights from WS3.
+- [x] **OMS:** Implement the state machine for order lifecycles and broker reconciliation.
+- [x] **Execution Algos:** Build basic simulation algorithm (filling at close).
+- [x] **Safety Layer:** Implement pre-trade weight and leverage limits.
+- [x] **Broker Gateway:** Build the adapter for connectivity (FIX/REST). (Simulated/Stubbed for PoC)
+- [x] **TCA Engine:** Build basic slippage calculation module.
 
 ---
 

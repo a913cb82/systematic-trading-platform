@@ -4,6 +4,7 @@ from datetime import datetime
 class Bar(TypedDict):
     internal_id: int
     timestamp: datetime
+    timestamp_knowledge: datetime
     open: float
     high: float
     low: float
@@ -24,4 +25,13 @@ class Event(TypedDict):
     type: str
     value: Any
     timestamp_event: datetime
+    timestamp_knowledge: datetime
+
+class CorporateAction(TypedDict):
+    internal_id: int
+    type: str  # 'SPLIT' | 'DIVIDEND'
+    ex_date: datetime
+    record_date: datetime
+    pay_date: datetime
+    ratio: float  # For splits: 2.0 for 2-for-1. For dividends: amount.
     timestamp_knowledge: datetime
