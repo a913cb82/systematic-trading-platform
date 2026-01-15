@@ -18,7 +18,7 @@ This document outlines the roadmap for building the systematic trading system. W
 ### Tasks
 - [x] **Implement ISM:** Create the service to assign and manage immutable `Internal_ID`s.
 - [x] **Symbology Service:** Build logic to map external tickers to `Internal_ID`.
-- [x] **Market Data Engine:** Set up Parquet storage for cycle-based (bars/ticks) data.
+- [ ] **Market Data Engine:** Set up Parquet storage for cycle-based (bars/ticks) data.
   - [x] Initial Parquet implementation.
   - [x] Implement dynamic price adjustment (Ratio/Raw) in `get_bars`.
 - [x] **Bitemporal Query Layer:** Implement the abstract access layer handling 'Event' vs 'Knowledge' timestamps to prevent look-ahead bias.
@@ -53,7 +53,7 @@ This document outlines the roadmap for building the systematic trading system. W
 - [x] **Risk Model:** Implement structured factor models (e.g., PCA or Fundamental) to produce covariance matrices.
 - [x] **The Optimizer:** Build the QP solver using `CVXPY` to maximize $U = \text{Forecast} - \text{Risk Penalty} - \text{Transaction Costs}$.
   - [x] Initial Cvxpy implementation.
-  - [x] Reconstruct Total Expected Return ($\\mu$) from residuals and factor returns.
+  - [x] Reconstruct Total Expected Return from residuals and factor returns.
 - [x] **Constraints:** Implement soft constraints for leverage, position limits, and turnover.
   - [x] Hard constraints implementation.
   - [x] Refactor Hard Constraints into Soft Penalties for solver robustness.
@@ -86,7 +86,7 @@ This document outlines the roadmap for building the systematic trading system. W
 - [x] **Returns Engine:** Implement `get_returns` supporting both Raw and Residual (factor-neutral) calculations.
 
 ### Alpha Research Compliance
-- [x] **Residual Forecasting:** Refactor `MeanReversionModel` to explicitly target idiosyncratic movement ($\\epsilon$). [in_progress]
+- [x] **Residual Forecasting:** Refactor `MeanReversionModel` to explicitly target idiosyncratic movement.
 - [x] **Processing Enhancements:** Add `winsorize` and `apply_decay` to `SignalProcessor`.
 
 ### Portfolio & Risk Compliance
@@ -99,29 +99,39 @@ This document outlines the roadmap for building the systematic trading system. W
 
 ---
 
-## Phase 2: Production Readiness (Upcoming)
+## Phase 2: Production Readiness
+**Goal:** Build connectivity and institutional-grade features.
 
-### Workstream 1: Data Platform (Expansion)
+### Tasks
 - [x] **A1: Live Ingestion Adapters:** Build connectivity to external providers (e.g., Alpaca, IEX, Polygon).
 - [x] **A2: Persistent Security Master:** Move ISM to a relational database (PostgreSQL) with full temporal history.
-
-### Workstream 2: Alpha Research (Sophistication)
 - [x] **B1: Advanced Feature Library:** Implement technical indicators (RSI, MACD) and microstructure features (Order Flow Imbalance).
-
-### Workstream 3: Portfolio & Risk (Institutional Grade)
 - [x] **C1: Structured Risk Models:** Implement PCA-based and Fundamental Factor risk models.
 - [x] **C2: Non-Linear Cost Modeling:** Integrate the Square Root Law for market impact in the optimizer.
 - [x] **C3: Neutrality Constraints:** Implement soft constraints for Sector and Factor (Market) neutrality.
-
-
-### Workstream 4: Execution & Operations (Live)
-- [x] **D1: Live Broker Gateway:** Implement FIX/REST connectivity for a production broker (e.g., Interactive Brokers).
+- [x] **D1: Live Broker Gateway:** Implement FIX/REST connectivity for a production broker.
 - [x] **D2: OMS Reconciliation:** Build the T+0 reconciliation engine to sync internal positions with broker state.
 - [x] **D3: Live Safety Layer:** Implement message-rate limiting and intraday kill-switches.
-
-### Infrastructure & Monitoring
 - [x] **E1: Configuration System:** Replace hardcoded values with a robust YAML/Env-based configuration manager.
 - [x] **E2: Monitoring & Alerting:** Build health-check heartbeats and PnL/Exposure alerts.
+
+---
+
+## Phase 3: Platform Maturity & Extensibility
+**Goal:** Enhance Developer Experience (DX) and system strictness.
+
+### Extensibility & DX
+- [ ] **Feature Registry:** Implement decorator-based registry (`@register_feature`) to allow extensibility without editing core `FeatureStore`.
+- [ ] **Simplified Alpha API:** Implement a high-level wrapper so users only need to implement `on_cycle(self, datetime, modelstate)`.
+- [ ] **Standardized Model State:** Define a robust `ModelState` (OHLCV + Positions + Features) to pass to models.
+- [ ] **Residual returns usage:** Ensure `get_returns` (RESIDUAL) is used throughout the demo model code.
+
+### Robustness & Data Quality
+- [ ] **Strict Mypy Enforcement:** Enable `disallow_untyped_defs` and `warn_unused_ignores` in `pyproject.toml`.
+- [ ] **Data Ingestion Validation:** Implement schema enforcement and "bad print" filtering for incoming market data.
+- [ ] **Validated Configuration:** Use Pydantic or basic dataclass mapping for `config.yaml` validation.
+- [ ] **Synthetic Gap Filler:** Implement policy-based forward-filling for missing bars in live data feeds.
+- [ ] **Real Data Source:** Link up market data to one real data source providing free market data at some intraday frequency with no API key requirements.
 
 ---
 
