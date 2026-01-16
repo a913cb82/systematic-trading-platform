@@ -4,7 +4,7 @@ from typing import Any, Callable, Dict, List, Optional
 import numpy as np
 import pandas as pd
 
-from .data_platform import DataPlatform
+from .data_platform import BAR_COLS, DataPlatform
 
 # Global Feature Registry
 FEATURES: Dict[str, Callable[[pd.DataFrame], pd.Series]] = {}
@@ -35,14 +35,16 @@ class SignalProcessor:
 
 
 class AlphaModel:
-    def __init__(self, data: DataPlatform, features: List[str]):
-        self.data = data
-        self.feature_names = features
-        # Ensure all features are registered
-        import src.alpha_library.features  # noqa: F401
+    def __init__(self) -> None:
+        self.feature_names: List[str] = []
 
+    def compute_signals(self, latest: pd.DataFrame) -> Dict[int, float]:
+        raise NotImplementedError
+
+
+class AlphaEngine:
+    @staticmethod
     def _hydrate_features(
-        self,
         df: pd.DataFrame,
         feature_names: List[str],
         seen: Optional[set[str]] = None,
@@ -54,42 +56,40 @@ class AlphaModel:
             if f in seen or f not in FEATURES:
                 continue
 
-            # Recursively hydrate dependencies first
             deps = FEATURE_DEPS.get(f, [])
-            self._hydrate_features(df, deps, seen)
-
-            # Compute feature
+            AlphaEngine._hydrate_features(df, deps, seen)
             df[f] = FEATURES[f](df)
             seen.add(f)
 
-    def generate_forecasts(
-        self,
+    @staticmethod
+    def run_model(
+        data: DataPlatform,
+        model: AlphaModel,
         internal_ids: List[int],
         timestamp: datetime,
         lookback_days: int = 30,
     ) -> Dict[int, float]:
+        # Ensure all features are registered
+        import src.alpha_library.features  # noqa: F401
+
         start = timestamp - pd.Timedelta(days=lookback_days)
-        df = self.data.get_bars(internal_ids, start, timestamp)
+        df = data.get_bars(internal_ids, start, timestamp)
 
-        # Hydrate requested features and all their dependencies
-        self._hydrate_features(df, self.feature_names)
+        AlphaEngine._hydrate_features(df, model.feature_names)
 
-        latest = df[df["timestamp"] == timestamp].set_index("internal_id")
+        available_features = [
+            f for f in model.feature_names if f in df.columns
+        ]
+        df_filtered = df[BAR_COLS + available_features]
 
-        # Model Logic (passing latest state and full hydrated history)
-        return self.compute_signals(latest, df)
+        latest = df_filtered[df_filtered["timestamp"] == timestamp].set_index(
+            "internal_id"
+        )
 
-    def compute_signals(
-        self, latest: pd.DataFrame, history: pd.DataFrame
-    ) -> Dict[int, float]:
-        raise NotImplementedError
+        return model.compute_signals(latest)
 
 
 class SignalCombiner:
-    """
-    Combines multiple signals using fixed linear weights.
-    """
-
     @staticmethod
     def combine(
         signals_list: List[Dict[int, float]],

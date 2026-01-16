@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from datetime import datetime
 from typing import Any, Dict, List, Optional, cast
 
@@ -34,6 +34,9 @@ class CorporateAction:
     ex_date: datetime
     type: str  # 'SPLIT' or 'DIVIDEND'
     ratio: float
+
+
+BAR_COLS = [f.name for f in fields(Bar) if f.name != "timestamp_knowledge"]
 
 
 class DataPlatform:

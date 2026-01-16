@@ -26,23 +26,29 @@ class TestAlphaEngine(unittest.TestCase):
 
     def test_alpha_model_signals(self) -> None:
         class SimpleModel(AlphaModel):
+            def __init__(self) -> None:
+                super().__init__()
+                self.feature_names = ["returns_raw"]
+
             def compute_signals(
-                self, latest: pd.DataFrame, history: pd.DataFrame
+                self, latest: pd.DataFrame
             ) -> Dict[int, float]:
                 return {iid: 0.1 for iid in latest.index}
 
-        model = SimpleModel(self.data, features=["returns_raw"])
+        model = SimpleModel()
         ts = datetime(2025, 1, 1) + timedelta(days=14)
-        forecasts = model.generate_forecasts([self.iid], ts)
+        from src.core.alpha_engine import AlphaEngine
+
+        forecasts = AlphaEngine.run_model(self.data, model, [self.iid], ts)
 
         self.assertEqual(len(forecasts), 1)
         self.assertEqual(forecasts[self.iid], 0.1)
 
     def test_alpha_model_not_implemented(self) -> None:
         """Verify base class raises NotImplementedError."""
-        model = AlphaModel(MagicMock(), [])
+        model = AlphaModel()
         with self.assertRaises(NotImplementedError):
-            model.compute_signals(MagicMock(), MagicMock())
+            model.compute_signals(MagicMock())
 
     def test_signal_processor(self) -> None:
         from src.core.alpha_engine import SignalProcessor

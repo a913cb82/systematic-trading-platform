@@ -33,17 +33,23 @@ class TestFeatureDependencies(unittest.TestCase):
             return df["plus_one"] + 1
 
         class DepModel(AlphaModel):
+            def __init__(self) -> None:
+                super().__init__()
+                self.feature_names = ["plus_two"]
+
             def compute_signals(
-                self, latest: pd.DataFrame, history: pd.DataFrame
+                self, latest: pd.DataFrame
             ) -> Dict[int, float]:
                 return {
                     int(idx): float(row["plus_two"])
                     for idx, row in latest.iterrows()
                 }
 
-        model = DepModel(self.data, features=["plus_two"])
+        model = DepModel()
         ts = datetime(2025, 1, 1) + timedelta(days=4)
-        forecasts = model.generate_forecasts([self.iid], ts)
+        from src.core.alpha_engine import AlphaEngine
+
+        forecasts = AlphaEngine.run_model(self.data, model, [self.iid], ts)
 
         # AAPL close at day 4 is 104. plus_one = 105, plus_two = 106.
         self.assertEqual(forecasts[self.iid], 106.0)

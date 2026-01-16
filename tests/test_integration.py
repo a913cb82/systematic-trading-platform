@@ -61,14 +61,20 @@ class TestFullSystemIntegration(unittest.TestCase):
 
         # Alpha
         class SimpleAlpha(AlphaModel):
+            def __init__(self) -> None:
+                super().__init__()
+                self.feature_names = []
+
             def compute_signals(
-                self, latest: pd.DataFrame, history: pd.DataFrame
+                self, latest: pd.DataFrame
             ) -> Dict[int, float]:
                 return {iid: 0.1 for iid in latest.index}
 
-        model = SimpleAlpha(data, features=[])
+        model = SimpleAlpha()
         ts = datetime(2025, 1, 10)
-        forecasts = model.generate_forecasts(iids, ts)
+        from src.core.alpha_engine import AlphaEngine
+
+        forecasts = AlphaEngine.run_model(data, model, iids, ts)
 
         # Portfolio
         hist_returns = np.random.randn(10, 2) * 0.01

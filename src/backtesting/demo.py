@@ -95,10 +95,8 @@ def run_demo() -> None:
 
     # 3. Models (Targeting residuals)
     alpha_models = [
-        ResidualMomentumModel(data, features=["residual_mom_10"]),
-        ResidualReversionModel(
-            data, features=["returns_residual", "residual_vol_20"]
-        ),
+        ResidualMomentumModel(),
+        ResidualReversionModel(),
     ]
 
     # 4. Run (Using dynamic universe from PIT Security Master)

@@ -83,9 +83,13 @@ class BacktestEngine:
                     break
 
                 # Alpha Generation
+                from src.core.alpha_engine import AlphaEngine
+
                 signals = []
                 for model in alpha_models:
-                    signals.append(model.generate_forecasts(iids, ts))
+                    signals.append(
+                        AlphaEngine.run_model(self.data, model, iids, ts)
+                    )
 
                 combined = SignalCombiner.combine(
                     [SignalProcessor.zscore(s) for s in signals],
