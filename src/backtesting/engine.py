@@ -1,12 +1,27 @@
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
 import pandas as pd
 
 from src.backtesting.analytics import PerformanceAnalyzer
-from src.core.alpha_engine import SignalCombiner, SignalProcessor
-from src.core.data_platform import DataPlatform
+from src.core.alpha_engine import (
+    ModelRunConfig,
+    SignalCombiner,
+    SignalProcessor,
+)
+from src.core.data_platform import DataPlatform, QueryConfig
 from src.core.portfolio_manager import PortfolioManager
+
+
+@dataclass
+class BacktestConfig:
+    start_date: datetime
+    end_date: datetime
+    alpha_models: List
+    weights: List[float]
+    tickers: Optional[List[str]] = None
+    timeframe: str = "30min"
 
 
 class BacktestEngine:
@@ -28,26 +43,23 @@ class BacktestEngine:
         self.total_attribution = {"factor": 0.0, "selection": 0.0}
         self.status = "ACTIVE"
 
-    def run(
-        self,
-        start_date: datetime,
-        end_date: datetime,
-        alpha_models: List,
-        weights: List[float],
-        tickers: Optional[List[str]] = None,
-    ) -> Dict:
+    def run(self, config: BacktestConfig) -> Dict:
         """
         Runs the simulation. If tickers is None, uses the dynamic PIT universe.
         """
-        trading_days = pd.date_range(start_date, end_date, freq="B")
+        trading_days = pd.date_range(
+            config.start_date, config.end_date, freq="B"
+        )
 
         for day in trading_days:
             if self.status == "KILLED":
                 break
 
             # 1. Dynamic Universe Selection
-            if tickers is not None:
-                iids = sorted([self.data.get_internal_id(t) for t in tickers])
+            if config.tickers is not None:
+                iids = sorted(
+                    [self.data.get_internal_id(t) for t in config.tickers]
+                )
             else:
                 iids = sorted(self.data.get_universe(day))
 
@@ -56,14 +68,20 @@ class BacktestEngine:
 
             # 2. Risk Model Update
             hist_df = self.data.get_bars(
-                iids, day - timedelta(days=5), day - timedelta(minutes=1)
+                iids,
+                QueryConfig(
+                    start=day - timedelta(days=5),
+                    end=day - timedelta(minutes=1),
+                    timeframe=config.timeframe,
+                ),
             )
             if hist_df.empty:
                 continue
 
+            close_col = f"close_{config.timeframe}"
             pivot_rets = (
                 hist_df.pivot(
-                    index="timestamp", columns="internal_id", values="close"
+                    index="timestamp", columns="internal_id", values=close_col
                 )
                 .pct_change(fill_method=None)
                 .dropna()
@@ -86,30 +104,45 @@ class BacktestEngine:
                 from src.core.alpha_engine import AlphaEngine
 
                 signals = []
-                for model in alpha_models:
+                for model in config.alpha_models:
                     signals.append(
-                        AlphaEngine.run_model(self.data, model, iids, ts)
+                        AlphaEngine.run_model(
+                            self.data,
+                            model,
+                            iids,
+                            ModelRunConfig(
+                                timestamp=ts, timeframe=config.timeframe
+                            ),
+                        )
                     )
 
                 combined = SignalCombiner.combine(
                     [SignalProcessor.zscore(s) for s in signals],
-                    weights=weights,
+                    weights=config.weights,
                 )
 
                 weights_opt = self.pm.optimize(combined)
 
                 # 4. Simulate Returns
-                current_bars = self.data.get_bars(iids, ts, ts)
+                current_bars = self.data.get_bars(
+                    iids,
+                    QueryConfig(start=ts, end=ts, timeframe=config.timeframe),
+                )
                 next_ts = ts + timedelta(hours=1)
-                next_bars = self.data.get_bars(iids, next_ts, next_ts)
+                next_bars = self.data.get_bars(
+                    iids,
+                    QueryConfig(
+                        start=next_ts, end=next_ts, timeframe=config.timeframe
+                    ),
+                )
 
                 if not current_bars.empty and not next_bars.empty:
                     p0 = {
-                        row["internal_id"]: float(row["close"])
+                        row["internal_id"]: float(row[close_col])
                         for _, row in current_bars.iterrows()
                     }
                     p1 = {
-                        row["internal_id"]: float(row["close"])
+                        row["internal_id"]: float(row[close_col])
                         for _, row in next_bars.iterrows()
                     }
 

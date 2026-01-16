@@ -4,7 +4,13 @@ from datetime import datetime, timedelta
 import numpy as np
 
 from src.core.alpha_engine import FEATURES
-from src.core.data_platform import Bar, CorporateAction, DataPlatform, Event
+from src.core.data_platform import (
+    Bar,
+    CorporateAction,
+    DataPlatform,
+    Event,
+    QueryConfig,
+)
 
 
 class TestDataPlatformDepth(unittest.TestCase):
@@ -58,7 +64,18 @@ class TestDataPlatformDepth(unittest.TestCase):
         """
         # T+0: Initial price 100
         self.data.add_bars(
-            [Bar(self.iid, self.ts, 100, 100, 100, 100, 1000, self.ts)]
+            [
+                Bar(
+                    self.iid,
+                    self.ts,
+                    100,
+                    100,
+                    100,
+                    100,
+                    1000,
+                    timestamp_knowledge=self.ts,
+                )
+            ]
         )
         # T+2: Correction to 102
         self.data.add_bars(
@@ -71,7 +88,7 @@ class TestDataPlatformDepth(unittest.TestCase):
                     102,
                     102,
                     1000,
-                    self.ts + timedelta(minutes=2),
+                    timestamp_knowledge=self.ts + timedelta(minutes=2),
                 )
             ]
         )
@@ -86,7 +103,7 @@ class TestDataPlatformDepth(unittest.TestCase):
                     101,
                     101,
                     1000,
-                    self.ts + timedelta(minutes=4),
+                    timestamp_knowledge=self.ts + timedelta(minutes=4),
                 )
             ]
         )
@@ -97,9 +114,14 @@ class TestDataPlatformDepth(unittest.TestCase):
             (self.ts + timedelta(minutes=5), 101),
         ]
         for as_of, expected in cases:
-            df = self.data.get_bars([self.iid], self.ts, self.ts, as_of=as_of)
+            df = self.data.get_bars(
+                [self.iid],
+                QueryConfig(
+                    start=self.ts, end=self.ts, timeframe="1D", as_of=as_of
+                ),
+            )
             self.assertEqual(
-                df.iloc[0]["close"], expected, f"Failed at as_of={as_of}"
+                df.iloc[0]["close_1D"], expected, f"Failed at as_of={as_of}"
             )
 
     def test_compound_corporate_actions(self) -> None:
@@ -121,14 +143,17 @@ class TestDataPlatformDepth(unittest.TestCase):
         self.data.add_ca(CorporateAction(self.iid, t2, "SPLIT", 2.0))
         self.data.add_ca(CorporateAction(self.iid, t3, "DIVIDEND", 0.9))
 
-        df = self.data.get_bars([self.iid], t1, t4, adjust=True)
+        df = self.data.get_bars(
+            [self.iid],
+            QueryConfig(start=t1, end=t4, timeframe="1D", adjust=True),
+        )
         # Final price 45. t1 should be 100 / 2 * 0.9 = 45.0
         self.assertAlmostEqual(
-            df[df["timestamp"] == t1].iloc[0]["close"], 45.0
+            df[df["timestamp"] == t1].iloc[0]["close_1D"], 45.0
         )
         # t2 should be 50 * 0.9 = 45.0
         self.assertAlmostEqual(
-            df[df["timestamp"] == t2].iloc[0]["close"], 45.0
+            df[df["timestamp"] == t2].iloc[0]["close_1D"], 45.0
         )
 
     def test_symbology_history(self) -> None:
@@ -146,27 +171,49 @@ class TestDataPlatformDepth(unittest.TestCase):
 
     def test_residual_calculation_robustness(self) -> None:
         """Tests residual returns via feature calculation."""
+        import src.alpha_library.features  # noqa: F401
+
         # Use enough observations to ensure PCA doesn't explain 100% variance.
-        # We need more than n_factors + 1 observations.
         n_obs = 10
         iids = [self.data.get_internal_id(f"T{i}") for i in range(5)]
 
+        tf = "30min"
         for iid in iids:
             for i in range(n_obs):
                 ts = self.ts + timedelta(days=i)
                 price = 100 + np.random.randn()
                 self.data.add_bars(
-                    [Bar(iid, ts, price, price + 1, price - 1, price, 1000)]
+                    [
+                        Bar(
+                            iid,
+                            ts,
+                            price,
+                            price + 1,
+                            price - 1,
+                            price,
+                            1000,
+                            timeframe=tf,
+                        )
+                    ]
                 )
 
+        # We query with 30min timeframe to match what the features expect
         df = self.data.get_bars(
-            iids, self.ts, self.ts + timedelta(days=n_obs - 1)
+            iids,
+            QueryConfig(
+                start=self.ts,
+                end=self.ts + timedelta(days=n_obs - 1),
+                timeframe=tf,
+            ),
         )
-        df["returns_raw"] = FEATURES["returns_raw"](df)
-        df["res"] = FEATURES["returns_residual"](df)
+
+        df["returns_raw_30min"] = FEATURES["returns_raw_30min"](df)
+        df["returns_residual_30min"] = FEATURES["returns_residual_30min"](df)
 
         # Check that residuals are not all zero for non-NaN rows
-        res_values = df.dropna(subset=["returns_raw"])["res"].values
+        res_values = df.dropna(subset=["returns_raw_30min"])[
+            "returns_residual_30min"
+        ].values
         tolerance = 1e-10
         self.assertTrue(np.any(np.abs(res_values) > tolerance))
 

@@ -1,14 +1,23 @@
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
 
-from .data_platform import BAR_COLS, DataPlatform
+from .data_platform import DataPlatform
 
 # Global Feature Registry
+# Registered by exact name (e.g. 'returns_raw_30min')
 FEATURES: Dict[str, Callable[[pd.DataFrame], pd.Series]] = {}
 FEATURE_DEPS: Dict[str, List[str]] = {}
+
+
+@dataclass
+class ModelRunConfig:
+    timestamp: datetime
+    timeframe: str = "1D"
+    lookback_days: int = 30
 
 
 def feature(
@@ -17,6 +26,31 @@ def feature(
     def decorator(func: Callable[[pd.DataFrame], pd.Series]) -> Callable:
         FEATURES[name] = func
         FEATURE_DEPS[name] = dependencies or []
+        return func
+
+    return decorator
+
+
+def multi_tf_feature(
+    name: str, timeframes: List[str], dependencies: Optional[List[str]] = None
+) -> Callable[[Callable[[pd.DataFrame, str], pd.Series]], Callable]:
+    """
+    Utility to register a feature for multiple timeframes.
+    Handles naming for both the feature and its dependencies.
+    """
+
+    def decorator(func: Callable[[pd.DataFrame, str], pd.Series]) -> Callable:
+        for tf in timeframes:
+            full_name = f"{name}_{tf}"
+            tf_deps = [f"{d}_{tf}" for d in (dependencies or [])]
+
+            # Bind the timeframe to the function
+            def make_wrapper(
+                current_tf: str,
+            ) -> Callable[[pd.DataFrame], pd.Series]:
+                return lambda df: func(df, current_tf)
+
+            feature(full_name, dependencies=tf_deps)(make_wrapper(tf))
         return func
 
     return decorator
@@ -56,8 +90,11 @@ class AlphaEngine:
             if f in seen or f not in FEATURES:
                 continue
 
+            # Recursively hydrate dependencies
             deps = FEATURE_DEPS.get(f, [])
             AlphaEngine._hydrate_features(df, deps, seen)
+
+            # Compute and store
             df[f] = FEATURES[f](df)
             seen.add(f)
 
@@ -66,23 +103,28 @@ class AlphaEngine:
         data: DataPlatform,
         model: AlphaModel,
         internal_ids: List[int],
-        timestamp: datetime,
-        lookback_days: int = 30,
+        config: ModelRunConfig,
     ) -> Dict[int, float]:
         # Ensure all features are registered
         import src.alpha_library.features  # noqa: F401
 
-        start = timestamp - pd.Timedelta(days=lookback_days)
-        df = data.get_bars(internal_ids, start, timestamp)
+        from .data_platform import QueryConfig
 
+        start = config.timestamp - pd.Timedelta(days=config.lookback_days)
+        df = data.get_bars(
+            internal_ids,
+            QueryConfig(
+                start=start, end=config.timestamp, timeframe=config.timeframe
+            ),
+        )
+        if df.empty:
+            return {}
+
+        # 1. Hydrate requested features
         AlphaEngine._hydrate_features(df, model.feature_names)
 
-        available_features = [
-            f for f in model.feature_names if f in df.columns
-        ]
-        df_filtered = df[BAR_COLS + available_features]
-
-        latest = df_filtered[df_filtered["timestamp"] == timestamp].set_index(
+        # 2. Extract cross-section at target timestamp
+        latest = df[df["timestamp"] == config.timestamp].set_index(
             "internal_id"
         )
 

@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 import pandas as pd
 
-from src.core.alpha_engine import FEATURES, AlphaModel
+from src.core.alpha_engine import FEATURES, AlphaEngine, AlphaModel
 from src.core.data_platform import Bar, DataPlatform
 
 
@@ -15,20 +15,23 @@ class TestAlphaEngine(unittest.TestCase):
         self.iid = self.data.get_internal_id("AAPL")
         for i in range(15):
             ts = datetime(2025, 1, 1) + timedelta(days=i)
+            # Default timeframe is 1D
             self.data.add_bars(
                 [Bar(self.iid, ts, 100, 101, 99, 100 + i, 1000)]
             )
 
     def test_feature_registry(self) -> None:
-        self.assertIn("returns_raw", FEATURES)
-        self.assertIn("returns_residual", FEATURES)
-        self.assertIn("residual_mom_10", FEATURES)
+        import src.alpha_library.features  # noqa: F401
+
+        self.assertIn("returns_raw_30min", FEATURES)
+        self.assertIn("returns_residual_30min", FEATURES)
+        self.assertIn("residual_mom_10_30min", FEATURES)
 
     def test_alpha_model_signals(self) -> None:
         class SimpleModel(AlphaModel):
             def __init__(self) -> None:
                 super().__init__()
-                self.feature_names = ["returns_raw"]
+                self.feature_names = ["returns_raw_30min"]
 
             def compute_signals(
                 self, latest: pd.DataFrame
@@ -36,13 +39,35 @@ class TestAlphaEngine(unittest.TestCase):
                 return {iid: 0.1 for iid in latest.index}
 
         model = SimpleModel()
-        ts = datetime(2025, 1, 1) + timedelta(days=14)
-        from src.core.alpha_engine import AlphaEngine
+        ts = datetime(2025, 1, 1, 10, 0)
+        # Add data with 30min timeframe
+        self.data.add_bars(
+            [
+                Bar(self.iid, ts, 100, 101, 99, 100, 1000, timeframe="30min"),
+                Bar(
+                    self.iid,
+                    ts - timedelta(minutes=30),
+                    99,
+                    100,
+                    98,
+                    99,
+                    1000,
+                    timeframe="30min",
+                ),
+            ]
+        )
 
-        forecasts = AlphaEngine.run_model(self.data, model, [self.iid], ts)
+        from src.core.alpha_engine import ModelRunConfig
+
+        forecasts = AlphaEngine.run_model(
+            self.data,
+            model,
+            [self.iid],
+            ModelRunConfig(timestamp=ts, timeframe="30min"),
+        )
 
         self.assertEqual(len(forecasts), 1)
-        self.assertEqual(forecasts[self.iid], 0.1)
+        self.assertAlmostEqual(forecasts[self.iid], 0.1)
 
     def test_alpha_model_not_implemented(self) -> None:
         """Verify base class raises NotImplementedError."""

@@ -72,9 +72,11 @@ class TestFullSystemIntegration(unittest.TestCase):
 
         model = SimpleAlpha()
         ts = datetime(2025, 1, 10)
-        from src.core.alpha_engine import AlphaEngine
+        from src.core.alpha_engine import AlphaEngine, ModelRunConfig
 
-        forecasts = AlphaEngine.run_model(data, model, iids, ts)
+        forecasts = AlphaEngine.run_model(
+            data, model, iids, ModelRunConfig(timestamp=ts, timeframe="1D")
+        )
 
         # Portfolio
         hist_returns = np.random.randn(10, 2) * 0.01

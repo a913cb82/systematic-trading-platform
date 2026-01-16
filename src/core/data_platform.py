@@ -16,6 +16,7 @@ class Bar:
     low: float
     close: float
     volume: float
+    timeframe: str = "1D"
     timestamp_knowledge: datetime = field(default_factory=datetime.now)
 
 
@@ -34,6 +35,15 @@ class CorporateAction:
     ex_date: datetime
     type: str  # 'SPLIT' or 'DIVIDEND'
     ratio: float
+
+
+@dataclass
+class QueryConfig:
+    start: datetime
+    end: datetime
+    timeframe: str = "1D"
+    as_of: Optional[datetime] = None
+    adjust: bool = True
 
 
 BAR_COLS = [f.name for f in fields(Bar) if f.name != "timestamp_knowledge"]
@@ -178,6 +188,7 @@ class DataPlatform:
                     row["low"],
                     row["close"],
                     row["volume"],
+                    row.get("timeframe", "1D"),
                     now,
                 )
             )
@@ -194,17 +205,15 @@ class DataPlatform:
     def get_bars(
         self,
         internal_ids: List[int],
-        start: datetime,
-        end: datetime,
-        as_of: Optional[datetime] = None,
-        adjust: bool = True,
+        config: QueryConfig,
     ) -> pd.DataFrame:
-        as_of = as_of or datetime.now()
+        as_of = config.as_of or datetime.now()
         valid = [
             b
             for b in self.bars
             if b.internal_id in internal_ids
-            and start <= b.timestamp <= end
+            and b.timeframe == config.timeframe
+            and config.start <= b.timestamp <= config.end
             and b.timestamp_knowledge <= as_of
         ]
         if not valid:
@@ -216,11 +225,13 @@ class DataPlatform:
             .last()
             .reset_index()
         )
-        if adjust and not self.ca_df.empty:
+
+        # Apply Corporate Actions
+        if config.adjust and not self.ca_df.empty:
             for iid in internal_ids:
                 iid_ca = self.ca_df[
                     (self.ca_df["internal_id"] == iid)
-                    & (self.ca_df["ex_date"] <= end)
+                    & (self.ca_df["ex_date"] <= config.end)
                 ]
                 for _, ca in iid_ca.sort_values(
                     "ex_date", ascending=False
@@ -236,4 +247,10 @@ class DataPlatform:
                         df.loc[mask, ["open", "high", "low", "close"]] *= ca[
                             "ratio"
                         ]
-        return df
+
+        # Rename core columns to include timeframe
+        rename_map = {
+            c: f"{c}_{config.timeframe}"
+            for c in ["open", "high", "low", "close", "volume"]
+        }
+        return df.rename(columns=rename_map)

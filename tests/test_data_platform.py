@@ -51,19 +51,35 @@ class TestDataPlatformFull(unittest.TestCase):
             ]
         )
 
+        from src.core.data_platform import QueryConfig
+
         # Query at T+2: should see 100
         df = self.data.get_bars(
-            [1000], self.ts, self.ts, as_of=self.ts + timedelta(minutes=2)
+            [1000],
+            QueryConfig(
+                start=self.ts,
+                end=self.ts,
+                timeframe="1D",
+                as_of=self.ts + timedelta(minutes=2),
+            ),
         )
-        self.assertEqual(df.iloc[0]["close"], 100)
+        self.assertEqual(df.iloc[0]["close_1D"], 100)
 
         # Query at T+6: should see 102
         df = self.data.get_bars(
-            [1000], self.ts, self.ts, as_of=self.ts + timedelta(minutes=6)
+            [1000],
+            QueryConfig(
+                start=self.ts,
+                end=self.ts,
+                timeframe="1D",
+                as_of=self.ts + timedelta(minutes=6),
+            ),
         )
-        self.assertEqual(df.iloc[0]["close"], 102)
+        self.assertEqual(df.iloc[0]["close_1D"], 102)
 
     def test_corporate_actions_adjustment(self) -> None:
+        from src.core.data_platform import QueryConfig
+
         ts1, ts2 = self.ts, self.ts + timedelta(days=1)
         self.data.add_bars(
             [
@@ -74,8 +90,11 @@ class TestDataPlatformFull(unittest.TestCase):
         self.data.add_ca(CorporateAction(1000, ts2, "SPLIT", 2.0))
 
         # Ratio adjusted: ts1 100 -> 50
-        df = self.data.get_bars([1000], ts1, ts2, adjust=True)
-        self.assertEqual(df[df["timestamp"] == ts1].iloc[0]["close"], 50)
+        df = self.data.get_bars(
+            [1000],
+            QueryConfig(start=ts1, end=ts2, timeframe="1D", adjust=True),
+        )
+        self.assertEqual(df[df["timestamp"] == ts1].iloc[0]["close_1D"], 50)
 
     def test_sync_data_with_corporate_actions(self) -> None:
         """Test that sync_data correctly ingests CA from provider."""
