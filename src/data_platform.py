@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 import pandas as pd
 
@@ -20,6 +20,15 @@ class Bar:
 
 
 @dataclass
+class Event:
+    internal_id: int
+    timestamp: datetime
+    event_type: str
+    value: Any
+    timestamp_knowledge: datetime = field(default_factory=datetime.now)
+
+
+@dataclass
 class CorporateAction:
     internal_id: int
     ex_date: datetime
@@ -30,71 +39,122 @@ class CorporateAction:
 class DataPlatform:
     def __init__(self, provider: Optional[DataProvider] = None) -> None:
         self.provider = provider
-        self.ism: Dict[str, int] = {}  # Ticker -> InternalID
-        self.reverse_ism: Dict[int, str] = {}
+        self.sec_df = pd.DataFrame(
+            columns=["internal_id", "ticker", "start", "end", "extra"]
+        ).astype(
+            {
+                "internal_id": "int64",
+                "ticker": "string",
+                "start": "datetime64[ns]",
+                "end": "datetime64[ns]",
+            }
+        )
         self.bars: List[Bar] = []
+        self.events: List[Event] = []
         self.ca_df = pd.DataFrame(
             columns=["internal_id", "ex_date", "type", "ratio"]
+        ).astype(
+            {
+                "internal_id": "int64",
+                "ex_date": "datetime64[ns]",
+                "type": "string",
+                "ratio": "float64",
+            }
         )
         self._id_counter = 1000
 
-    def get_internal_id(self, ticker: str) -> int:
-        if ticker not in self.ism:
-            self.ism[ticker] = self._id_counter
-            self.reverse_ism[self._id_counter] = ticker
+    def register_security(
+        self,
+        ticker: str,
+        internal_id: Optional[int] = None,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+        **kwargs: Any,
+    ) -> int:
+        start_dt = start or datetime(1900, 1, 1)
+        end_dt = end or datetime(2100, 1, 1)
+        if internal_id is None:
+            mask = (
+                (self.sec_df["ticker"] == ticker)
+                & (self.sec_df["start"] <= end_dt)
+                & (self.sec_df["end"] >= start_dt)
+            )
+            existing = self.sec_df[mask]
+            if not existing.empty:
+                return int(existing.iloc[0]["internal_id"])
+            internal_id = self._id_counter
             self._id_counter += 1
-        return self.ism[ticker]
-
-    def add_bars(self, bars: List[Bar], fill_gaps: bool = False) -> None:
-        valid_bars = []
-        for b in bars:
-            if b.high >= b.low and b.volume >= 0 and b.close > 0:
-                valid_bars.append(b)
-
-        if fill_gaps:
-            valid_bars = self._fill_gaps(valid_bars)
-        self.bars.extend(valid_bars)
-
-    def _fill_gaps(self, bars: List[Bar]) -> List[Bar]:
-        if not bars:
-            return []
-        bars = sorted(bars, key=lambda x: (x.internal_id, x.timestamp))
-        filled = []
-        last_bars: Dict[int, Bar] = {}
-
-        for b in bars:
-            if b.internal_id in last_bars:
-                last = last_bars[b.internal_id]
-                delta = b.timestamp - last.timestamp
-                if delta > pd.Timedelta(minutes=1):
-                    # Fill 1-min gaps
-                    for j in range(1, int(delta.total_seconds() / 60)):
-                        filled.append(
-                            Bar(
-                                b.internal_id,
-                                last.timestamp + pd.Timedelta(minutes=j),
-                                last.close,
-                                last.close,
-                                last.close,
-                                last.close,
-                                0.0,
-                            )
-                        )
-            filled.append(b)
-            last_bars[b.internal_id] = b
-        return filled
-
-    def add_ca(self, ca: CorporateAction) -> None:
         new_row = pd.DataFrame(
             [
                 {
-                    "internal_id": ca.internal_id,
-                    "ex_date": ca.ex_date,
-                    "type": ca.type,
-                    "ratio": ca.ratio,
+                    "internal_id": internal_id,
+                    "ticker": ticker,
+                    "start": start_dt,
+                    "end": end_dt,
+                    "extra": kwargs,
                 }
             ]
         )
+        self.sec_df = pd.concat([self.sec_df, new_row], ignore_index=True)
+        return internal_id
+
+    def get_internal_id(
+        self, ticker: str, date: Optional[datetime] = None
+    ) -> int:
+        date = date or datetime.now()
+        mask = (
+            (self.sec_df["ticker"] == ticker)
+            & (self.sec_df["start"] <= date)
+            & (self.sec_df["end"] >= date)
+        )
+        res = self.sec_df[mask]
+        if res.empty:
+            return self.register_security(ticker, start=date)
+        return int(res.iloc[0]["internal_id"])
+
+    @property
+    def reverse_ism(self) -> Dict[int, str]:
+        if self.sec_df.empty:
+            return {}
+        return cast(
+            Dict[int, str],
+            self.sec_df.sort_values("start")
+            .groupby("internal_id")["ticker"]
+            .last()
+            .to_dict(),
+        )
+
+    def get_universe(self, date: datetime) -> List[int]:
+        if self.sec_df.empty:
+            return []
+        mask = (self.sec_df["start"] <= date) & (self.sec_df["end"] >= date)
+        return cast(
+            List[int], self.sec_df[mask]["internal_id"].unique().tolist()
+        )
+
+    def add_events(self, events: List[Event]) -> None:
+        self.events.extend(events)
+
+    def get_events(
+        self,
+        internal_ids: List[int],
+        event_types: Optional[List[str]] = None,
+        as_of: Optional[datetime] = None,
+    ) -> List[Event]:
+        as_of = as_of or datetime.now()
+        return [
+            e
+            for e in self.events
+            if e.internal_id in internal_ids
+            and (event_types is None or e.event_type in event_types)
+            and e.timestamp_knowledge <= as_of
+        ]
+
+    def add_bars(self, bars: List[Bar]) -> None:
+        self.bars.extend(bars)
+
+    def add_ca(self, ca: CorporateAction) -> None:
+        new_row = pd.DataFrame([ca.__dict__])
         self.ca_df = pd.concat([self.ca_df, new_row]).drop_duplicates()
 
     def sync_data(
@@ -102,41 +162,31 @@ class DataPlatform:
     ) -> None:
         if not self.provider:
             return
-
-        # 1. Fetch from Plugin
         raw_bars = self.provider.fetch_bars(tickers, start, end)
         now = datetime.now()
-
-        # 2. Map to Internal IDs and Store (Bitemporal)
-        new_bars = []
         for _, row in raw_bars.iterrows():
-            iid = self.get_internal_id(row["ticker"])
-            new_bars.append(
+            iid = self.get_internal_id(row["ticker"], row["timestamp"])
+            self.bars.append(
                 Bar(
-                    internal_id=iid,
-                    timestamp=row["timestamp"],
-                    open=row["open"],
-                    high=row["high"],
-                    low=row["low"],
-                    close=row["close"],
-                    volume=row["volume"],
-                    timestamp_knowledge=now,
+                    iid,
+                    row["timestamp"],
+                    row["open"],
+                    row["high"],
+                    row["low"],
+                    row["close"],
+                    row["volume"],
+                    now,
                 )
             )
-        self.bars.extend(new_bars)
-
-        # 3. Fetch Corporate Actions
         raw_ca = self.provider.fetch_corporate_actions(tickers, start, end)
         if not raw_ca.empty:
-            raw_ca["internal_id"] = raw_ca["ticker"].apply(
-                self.get_internal_id
-            )
-            self.ca_df = pd.concat(
-                [
-                    self.ca_df,
-                    raw_ca[["internal_id", "ex_date", "type", "ratio"]],
-                ]
-            ).drop_duplicates()
+            for _, row in raw_ca.iterrows():
+                iid = self.get_internal_id(row["ticker"], row["ex_date"])
+                self.add_ca(
+                    CorporateAction(
+                        iid, row["ex_date"], row["type"], row["ratio"]
+                    )
+                )
 
     def get_bars(
         self,
@@ -147,65 +197,40 @@ class DataPlatform:
         adjust: bool = True,
     ) -> pd.DataFrame:
         as_of = as_of or datetime.now()
-        valid_bars = [
+        valid = [
             b
             for b in self.bars
             if b.internal_id in internal_ids
             and start <= b.timestamp <= end
             and b.timestamp_knowledge <= as_of
         ]
-
-        if not valid_bars:
+        if not valid:
             return pd.DataFrame()
-        df = pd.DataFrame(valid_bars)
         df = (
-            df.sort_values("timestamp_knowledge")
+            pd.DataFrame(valid)
+            .sort_values("timestamp_knowledge")
             .groupby(["internal_id", "timestamp"])
             .last()
             .reset_index()
         )
-
         if adjust and not self.ca_df.empty:
             for iid in internal_ids:
                 iid_ca = self.ca_df[
                     (self.ca_df["internal_id"] == iid)
                     & (self.ca_df["ex_date"] <= end)
                 ]
-                for _, action in iid_ca.sort_values(
+                for _, ca in iid_ca.sort_values(
                     "ex_date", ascending=False
                 ).iterrows():
                     mask = (df["internal_id"] == iid) & (
-                        df["timestamp"] < action["ex_date"]
+                        df["timestamp"] < ca["ex_date"]
                     )
-                    if action["type"] == "SPLIT":
-                        df.loc[mask, ["open", "high", "low", "close"]] /= (
-                            action["ratio"]
-                        )
-                    elif action["type"] == "DIVIDEND":
-                        df.loc[mask, ["open", "high", "low", "close"]] *= (
-                            action["ratio"]
-                        )
+                    if ca["type"] == "SPLIT":
+                        df.loc[mask, ["open", "high", "low", "close"]] /= ca[
+                            "ratio"
+                        ]
+                    elif ca["type"] == "DIVIDEND":
+                        df.loc[mask, ["open", "high", "low", "close"]] *= ca[
+                            "ratio"
+                        ]
         return df
-
-    def get_returns(
-        self,
-        internal_ids: List[int],
-        start: datetime,
-        end: datetime,
-        benchmark_id: Optional[int] = None,
-    ) -> pd.DataFrame:
-        df = self.get_bars(
-            internal_ids + ([benchmark_id] if benchmark_id else []), start, end
-        )
-        if df.empty:
-            return pd.DataFrame()
-        px = df.pivot(index="timestamp", columns="internal_id", values="close")
-        returns = px.pct_change(fill_method=None).dropna(how="all")
-
-        if benchmark_id and benchmark_id in returns.columns:
-            # Drop rows where either benchmark or asset is missing
-            returns = returns.dropna()
-            bench = returns[benchmark_id]
-            returns = returns.drop(columns=[benchmark_id]).sub(bench, axis=0)
-
-        return returns

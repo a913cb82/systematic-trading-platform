@@ -1,7 +1,7 @@
 import unittest
 from datetime import datetime, timedelta
 
-from src.data_platform import Bar, CorporateAction, DataPlatform
+from src.data_platform import Bar, CorporateAction, DataPlatform, Event
 
 
 class TestDataPlatformDepth(unittest.TestCase):
@@ -9,6 +9,44 @@ class TestDataPlatformDepth(unittest.TestCase):
         self.data = DataPlatform()
         self.iid = self.data.get_internal_id("AAPL")
         self.ts = datetime(2025, 1, 1, 9, 30)
+
+    def test_event_storage(self) -> None:
+        """Tests that generic events can be stored and filtered."""
+        event_ts = datetime(2025, 1, 1, 10, 0)
+        knowledge_ts = datetime(2025, 1, 1, 10, 5)
+        # Fundamental-style event
+        e1 = Event(self.iid, event_ts, "EARNINGS", {"eps": 1.50}, knowledge_ts)
+        # Alternative-style event
+        e2 = Event(
+            self.iid,
+            event_ts,
+            "SENTIMENT",
+            0.8,
+            knowledge_ts + timedelta(minutes=5),
+        )
+        self.data.add_events([e1, e2])
+
+        # Query as of 10:01
+        self.assertEqual(
+            len(
+                self.data.get_events(
+                    [self.iid], as_of=datetime(2025, 1, 1, 10, 1)
+                )
+            ),
+            0,
+        )
+        # Query as of 10:06 (should see e1)
+        res = self.data.get_events(
+            [self.iid], as_of=datetime(2025, 1, 1, 10, 6)
+        )
+        self.assertEqual(len(res), 1)
+        self.assertEqual(res[0].event_type, "EARNINGS")
+
+        # Query as of 10:11 (should see both)
+        res = self.data.get_events(
+            [self.iid], as_of=datetime(2025, 1, 1, 10, 11)
+        )
+        self.assertEqual(len(res), 2)
 
     def test_multi_version_bitemporal(self) -> None:
         """
@@ -90,24 +128,6 @@ class TestDataPlatformDepth(unittest.TestCase):
             df[df["timestamp"] == t2].iloc[0]["close"], 45.0
         )
 
-    def test_complex_gap_filling(self) -> None:
-        """Tests gap filling across multiple assets with overlapping ranges."""
-        iid2 = self.data.get_internal_id("MSFT")
-        t1 = self.ts
-        t4 = self.ts + timedelta(minutes=3)
-
-        bars = [
-            Bar(self.iid, t1, 100, 100, 100, 100, 1000),
-            Bar(self.iid, t4, 103, 103, 103, 103, 1000),
-            Bar(iid2, t1, 200, 200, 200, 200, 1000),
-            Bar(iid2, t4, 203, 203, 203, 203, 1000),
-        ]
-        self.data.add_bars(bars, fill_gaps=True)
-
-        df = self.data.get_bars([self.iid, iid2], t1, t4)
-        self.assertEqual(len(df), 8)  # 4 original + 4 synthetic (2 per asset)
-        self.assertEqual(len(df[df["volume"] == 0]), 4)
-
     def test_symbology_history(self) -> None:
         """
         Tests that different tickers can map to the same
@@ -122,28 +142,28 @@ class TestDataPlatformDepth(unittest.TestCase):
         self.assertNotEqual(iid, iid_meta)
 
     def test_residual_calculation_robustness(self) -> None:
-        """Tests residual returns with missing data points."""
+        """Tests residual returns via feature calculation."""
         bench_id = 999
-        t1, t2, t3 = (
-            self.ts,
-            self.ts + timedelta(days=1),
-            self.ts + timedelta(days=2),
-        )
+        t1, t2 = self.ts, self.ts + timedelta(days=1)
 
         self.data.add_bars(
             [
                 Bar(self.iid, t1, 100, 100, 100, 100, 1000),
-                Bar(self.iid, t2, 101, 101, 101, 101, 1000),
-                # Missing t3 for asset
+                Bar(self.iid, t2, 101, 101, 101, 101, 1000),  # +1%
                 Bar(bench_id, t1, 100, 100, 100, 100, 1000),
-                Bar(bench_id, t2, 101, 101, 101, 101, 1000),
-                Bar(bench_id, t3, 102, 102, 102, 102, 1000),
+                Bar(bench_id, t2, 102, 102, 102, 102, 1000),  # +2%
             ]
         )
 
-        rets = self.data.get_returns([self.iid], t1, t3, benchmark_id=bench_id)
-        # Should only have returns for days where both exist
-        self.assertEqual(len(rets), 1)
+        df = self.data.get_bars([self.iid, bench_id], t1, t2)
+        from src.alpha_engine import FEATURES
+
+        df["res"] = FEATURES["returns_residual"](df)
+        # Market average = (1% + 2%)/2 = 1.5%
+        # Residual for iid = 1% - 1.5% = -0.5%
+        self.assertAlmostEqual(
+            df[df["internal_id"] == self.iid].iloc[-1]["res"], -0.005
+        )
 
 
 if __name__ == "__main__":

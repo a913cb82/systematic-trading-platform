@@ -60,27 +60,21 @@ pytest
 ```
 
 ## Code Quality
-We use **Ruff** for linting and formatting, and **Mypy** for static type checking. Both are configured to match the project's 79-character line length standard.
+We use `pre-commit` to ensure code quality standards are met. This includes **Ruff** for linting and formatting, and **Mypy** for static type checking, along with automated testing via **Pytest**.
 
-### Linting & Formatting
-To run Ruff (checks and auto-formatting):
+### Running Quality Checks
+To manually run all checks on all files:
 ```bash
 source .venv/bin/activate
-ruff check . --fix  # Linting
-ruff format .       # Formatting
+pre-commit run --all-files
 ```
 
-### Type Checking
-To run Mypy:
-```bash
-source .venv/bin/activate
-mypy .
-```
+This ensures adherence to the project's 79-character line length standard and verifies that all tests pass before code is committed.
 
-## Quick Start (Live Simulation)
-To start the live trading simulation (ingestion, alpha, portfolio, and execution):
+## Quick Start (Institutional Simulation)
+To run the end-to-end institutional trading simulation (Multi-alpha combination, PCA risk modeling, and VWAP execution):
 ```bash
 source .venv/bin/activate
-python main.py
+python hedge_fund_full_stack.py
 ```
-This will initialize a mock live provider and run the end-to-end pipeline in real-time.
+This will run a full lifecycle simulation including data ingestion, alpha generation, optimization, and post-trade analysis.

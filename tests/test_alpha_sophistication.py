@@ -90,6 +90,23 @@ class TestAlphaSophistication(unittest.TestCase):
         """Tests that processing doesn't crash on empty input."""
         self.assertEqual(SignalProcessor.zscore({}), {})
         self.assertEqual(SignalProcessor.winsorize({}), {})
+        self.assertEqual(SignalProcessor.rank_transform({}), {})
+
+    def test_signal_decay(self) -> None:
+        """Tests exponential decay calculation."""
+        t0 = datetime(2025, 1, 1, 12, 0)
+        t1 = t0 + timedelta(minutes=60)
+        # 1.0 signal with 60 min half-life should be 0.5 after 60 mins
+        res = SignalProcessor.apply_decay(1.0, t0, t1, 60.0)
+        self.assertAlmostEqual(res, 0.5)
+
+    def test_rank_transform(self) -> None:
+        """Tests percentile ranking of signals."""
+        signals = {1000: 10.0, 1001: 20.0, 1002: 30.0, 1003: 40.0}
+        ranks = SignalProcessor.rank_transform(signals)
+        # Should be 0.25, 0.5, 0.75, 1.0
+        self.assertEqual(ranks[1000], 0.25)
+        self.assertEqual(ranks[1003], 1.0)
 
 
 if __name__ == "__main__":

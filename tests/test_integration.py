@@ -62,7 +62,7 @@ class TestFullSystemIntegration(unittest.TestCase):
         # Alpha
         class SimpleAlpha(AlphaModel):
             def compute_signals(
-                self, latest: pd.DataFrame, returns: pd.DataFrame
+                self, latest: pd.DataFrame, history: pd.DataFrame
             ) -> Dict[int, float]:
                 return {iid: 0.1 for iid in latest.index}
 

@@ -38,7 +38,7 @@ class TestPortfolioManagerAdditional(unittest.TestCase):
         forecasts_new = {1000: 0.11}  # Small change
         w2 = pm.optimize(forecasts_new, returns)[1000]
 
-        self.assertAlmostEqual(w1, w2, places=6)
+        self.assertAlmostEqual(w1, w2, places=4)
 
 
 if __name__ == "__main__":

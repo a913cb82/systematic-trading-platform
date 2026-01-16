@@ -16,7 +16,9 @@ class TestExecutionHandler(unittest.TestCase):
         reverse_ism = {1001: "AAPL"}
 
         handler.rebalance(target_weights, reverse_ism, 10000.0)
-        backend.submit_order.assert_called_with("AAPL", 40.0, "BUY")
+        # Default vwap_execute uses 5 slices. 40 / 5 = 8.0
+        backend.submit_order.assert_called_with("AAPL", 8.0, "BUY")
+        self.assertEqual(backend.submit_order.call_count, 5)
 
     def test_rebalance_multi_asset(self) -> None:
         backend = MagicMock()
@@ -31,11 +33,11 @@ class TestExecutionHandler(unittest.TestCase):
 
         handler.rebalance(target_weights, reverse_ism, 22000.0)
 
-        # Should only call submit_order for MSFT
-        backend.submit_order.assert_called_once()
+        # Should only call submit_order for MSFT, 5 times (slices)
+        self.assertEqual(backend.submit_order.call_count, 5)
         args, _ = backend.submit_order.call_args
         self.assertEqual(args[0], "MSFT")
-        self.assertAlmostEqual(args[1], 10.0, places=2)
+        self.assertAlmostEqual(args[1], 2.0, places=2)  # 10 / 5 = 2.0
 
     def test_execute_direct(self) -> None:
         backend = MagicMock()

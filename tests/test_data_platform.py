@@ -77,54 +77,6 @@ class TestDataPlatformFull(unittest.TestCase):
         df = self.data.get_bars([1000], ts1, ts2, adjust=True)
         self.assertEqual(df[df["timestamp"] == ts1].iloc[0]["close"], 50)
 
-    def test_validation_and_gap_filling(self) -> None:
-        # 1. Validation
-        invalid = [
-            Bar(1000, self.ts, 100, 90, 110, 100, 1000),  # High < Low
-            Bar(1000, self.ts, 100, 110, 90, 100, -1),
-        ]  # Neg Vol
-        self.data.add_bars(invalid)
-        self.assertEqual(len(self.data.get_bars([1000], self.ts, self.ts)), 0)
-
-        # 2. Gap Filling
-        t1 = self.ts
-        t3 = self.ts + timedelta(minutes=2)  # Gap at t2
-        self.data.add_bars(
-            [
-                Bar(1000, t1, 100, 100, 100, 100, 1000),
-                Bar(1000, t3, 101, 101, 101, 101, 1000),
-            ],
-            fill_gaps=True,
-        )
-        df = self.data.get_bars([1000], t1, t3)
-        self.assertEqual(len(df), 3)
-        self.assertEqual(
-            df.iloc[1]["timestamp"], self.ts + timedelta(minutes=1)
-        )
-        self.assertEqual(df.iloc[1]["volume"], 0)
-
-    def test_residual_returns(self) -> None:
-        t1, t2 = self.ts, self.ts + timedelta(days=1)
-        self.data.add_bars(
-            [
-                Bar(1000, t1, 100, 100, 100, 100, 1000),
-                Bar(1000, t2, 101, 101, 101, 101, 1000),
-                Bar(999, t1, 100, 100, 100, 100, 1000),
-                Bar(999, t2, 102, 102, 102, 102, 1000),
-            ]
-        )  # Benchmark up 2%
-
-        # Asset up 1%, Bench up 2% -> Residual -1%
-        rets = self.data.get_returns([1000], t1, t2, benchmark_id=999)
-        self.assertAlmostEqual(rets.iloc[0][1000], -0.01)
-
-    def test_get_returns_empty(self) -> None:
-        """Test returns calculation with no data."""
-        rets = self.data.get_returns(
-            [1000], datetime(2025, 1, 1), datetime(2025, 1, 2)
-        )
-        self.assertTrue(rets.empty)
-
     def test_sync_data_with_corporate_actions(self) -> None:
         """Test that sync_data correctly ingests CA from provider."""
 

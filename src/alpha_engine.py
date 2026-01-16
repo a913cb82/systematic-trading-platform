@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Callable, Dict, List, cast
+from typing import Any, Callable, Dict, List, Optional, cast
 
 import numpy as np
 import pandas as pd
@@ -16,6 +16,23 @@ def feature(name: str) -> Callable[[Any], Any]:
         return func
 
     return decorator
+
+
+@feature("returns_raw")
+def returns_raw(df: pd.DataFrame) -> pd.Series:
+    return cast(
+        pd.Series,
+        df.groupby("internal_id")["close"].pct_change(fill_method=None),
+    )
+
+
+@feature("returns_residual")
+def returns_residual(df: pd.DataFrame) -> pd.Series:
+    # Demeaned returns (idiosyncratic proxy)
+    rets = df.groupby("internal_id")["close"].pct_change(fill_method=None)
+    return cast(
+        pd.Series, rets - rets.groupby(df["timestamp"]).transform("mean")
+    )
 
 
 @feature("sma_10")
@@ -49,8 +66,6 @@ def macd(df: pd.DataFrame) -> pd.Series:
 
 @feature("ofi")
 def ofi(df: pd.DataFrame) -> pd.Series:
-    # Order Flow Imbalance (Simplified: Buy Vol - Sell Vol)
-    # Note: Requires buy_volume/sell_volume in Bar.
     return cast(
         pd.Series, df["volume"] * np.where(df["close"] >= df["open"], 1, -1)
     )
@@ -75,6 +90,35 @@ class SignalProcessor:
             k: float(np.clip(v, -limit, limit)) for k, v in signals.items()
         }
 
+    @staticmethod
+    def apply_decay(
+        signal: float,
+        initial_ts: datetime,
+        current_ts: datetime,
+        half_life_mins: float,
+    ) -> float:
+        delta = (current_ts - initial_ts).total_seconds() / 60.0
+        return float(signal * np.exp(-np.log(2) * delta / half_life_mins))
+
+    @staticmethod
+    def apply_linear_decay(
+        signal: float,
+        initial_ts: datetime,
+        current_ts: datetime,
+        duration_mins: float,
+    ) -> float:
+        delta = (current_ts - initial_ts).total_seconds() / 60.0
+        if delta >= duration_mins:
+            return 0.0
+        return float(signal * (1 - delta / duration_mins))
+
+    @staticmethod
+    def rank_transform(signals: Dict[int, float]) -> Dict[int, float]:
+        if not signals:
+            return {}
+        s = pd.Series(signals).rank(pct=True)
+        return cast(Dict[int, float], s.to_dict())
+
 
 class AlphaModel:
     def __init__(self, data: DataPlatform, features: List[str]):
@@ -88,20 +132,73 @@ class AlphaModel:
         lookback_days: int = 30,
     ) -> Dict[int, float]:
         start = timestamp - pd.Timedelta(days=lookback_days)
-        # 1. Get Residual Returns (Hedge Fund Guide mandates this)
-        returns = self.data.get_returns(internal_ids, start, timestamp)
-
-        # 2. Hydrate Features
         df = self.data.get_bars(internal_ids, start, timestamp)
+
+        # Hydrate Features
         for f in self.feature_names:
-            df[f] = FEATURES[f](df)
+            if f in FEATURES:
+                df[f] = FEATURES[f](df)
 
         latest = df[df["timestamp"] == timestamp].set_index("internal_id")
 
-        # 3. Model Logic (to be overridden)
-        return self.compute_signals(latest, returns)
+        # Model Logic (passing latest state and full hydrated history)
+        return self.compute_signals(latest, df)
 
     def compute_signals(
-        self, latest_features: pd.DataFrame, returns: pd.DataFrame
+        self, latest: pd.DataFrame, history: pd.DataFrame
     ) -> Dict[int, float]:
         raise NotImplementedError
+
+
+class SignalCombiner:
+    """
+    Combines multiple signals using fixed linear weights.
+    """
+
+    @staticmethod
+    def combine(
+        signals_list: List[Dict[int, float]],
+        weights: Optional[List[float]] = None,
+    ) -> Dict[int, float]:
+        if not signals_list:
+            return {}
+        if weights is None:
+            weights = [1.0 / len(signals_list)] * len(signals_list)
+
+        combined: Dict[int, float] = {}
+        for signals, weight in zip(signals_list, weights):
+            for iid, val in signals.items():
+                combined[iid] = combined.get(iid, 0.0) + val * weight
+        return combined
+
+
+class BacktestValidator:
+    """
+    Implements Sliding and Expanding Window validation frameworks.
+    """
+
+    @staticmethod
+    def get_windows(
+        start_date: datetime,
+        end_date: datetime,
+        window_size_days: int,
+        step_days: int,
+        expanding: bool = False,
+    ) -> List[tuple[datetime, datetime, datetime]]:
+        """
+        Returns a list of (train_start, train_end, test_end)
+        """
+        windows = []
+        current_train_end = start_date + pd.Timedelta(days=window_size_days)
+
+        while current_train_end + pd.Timedelta(days=step_days) <= end_date:
+            train_start = (
+                start_date
+                if expanding
+                else current_train_end - pd.Timedelta(days=window_size_days)
+            )
+            test_end = current_train_end + pd.Timedelta(days=step_days)
+            windows.append((train_start, current_train_end, test_end))
+            current_train_end += pd.Timedelta(days=step_days)
+
+        return windows
