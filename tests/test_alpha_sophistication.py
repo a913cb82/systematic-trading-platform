@@ -5,8 +5,9 @@ from typing import Dict
 import numpy as np
 import pandas as pd
 
-from src.alpha_engine import FEATURES, AlphaModel, SignalProcessor
-from src.data_platform import Bar, DataPlatform
+import src.alpha_library.features  # noqa: F401
+from src.core.alpha_engine import FEATURES, AlphaModel, SignalProcessor
+from src.core.data_platform import Bar, DataPlatform
 
 
 class TestAlphaSophistication(unittest.TestCase):
@@ -42,7 +43,7 @@ class TestAlphaSophistication(unittest.TestCase):
 
         class MACDModel(AlphaModel):
             def compute_signals(
-                self, latest: pd.DataFrame, returns: pd.DataFrame
+                self, latest: pd.DataFrame, history: pd.DataFrame
             ) -> Dict[int, float]:
                 # Convert the 'latest' DataFrame row to a dict of floats
                 return {

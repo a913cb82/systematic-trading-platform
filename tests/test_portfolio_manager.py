@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import numpy as np
 
-from src.portfolio_manager import PortfolioManager
+from src.core.portfolio_manager import PortfolioManager
 
 
 class TestPortfolioManagerAdditional(unittest.TestCase):
@@ -14,7 +14,7 @@ class TestPortfolioManagerAdditional(unittest.TestCase):
         self.assertFalse(pm.check_safety(1.0))
 
         future_time = datetime.now() + timedelta(seconds=2)
-        with patch("src.portfolio_manager.datetime") as mock_dt:
+        with patch("src.core.portfolio_manager.datetime") as mock_dt:
             mock_dt.now.return_value = future_time
             self.assertTrue(pm.check_safety(1.0))
             self.assertEqual(pm.msg_count, 1)

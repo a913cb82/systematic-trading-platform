@@ -2,7 +2,7 @@ import unittest
 
 import numpy as np
 
-from src.portfolio_manager import PortfolioManager
+from src.core.portfolio_manager import PortfolioManager
 
 
 class TestPortfolioExecutionFull(unittest.TestCase):

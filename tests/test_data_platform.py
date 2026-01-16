@@ -4,8 +4,8 @@ from typing import List
 
 import pandas as pd
 
-from src.base import DataProvider
-from src.data_platform import Bar, CorporateAction, DataPlatform
+from src.core.data_platform import Bar, CorporateAction, DataPlatform
+from src.gateways.base import DataProvider
 
 
 class TestDataPlatformFull(unittest.TestCase):

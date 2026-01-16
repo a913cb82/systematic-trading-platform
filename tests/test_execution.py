@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import MagicMock
 
-from src.execution_handler import ExecutionHandler
+from src.core.execution_handler import ExecutionHandler
 
 
 class TestExecutionHandler(unittest.TestCase):

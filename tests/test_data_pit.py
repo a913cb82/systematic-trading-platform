@@ -1,7 +1,7 @@
 import unittest
 from datetime import datetime, timedelta
 
-from src.data_platform import DataPlatform
+from src.core.data_platform import DataPlatform
 
 
 class TestDataPIT(unittest.TestCase):

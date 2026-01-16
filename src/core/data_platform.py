@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional, cast
 
 import pandas as pd
 
-from .base import DataProvider
+from src.gateways.base import DataProvider
 
 
 @dataclass

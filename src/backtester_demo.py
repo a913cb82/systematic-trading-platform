@@ -4,11 +4,13 @@ from typing import Dict, List
 import numpy as np
 import pandas as pd
 
-from src.alpha_engine import AlphaModel, SignalCombiner, SignalProcessor
-from src.base import DataProvider, ExecutionBackend
-from src.data_platform import DataPlatform
-from src.execution_handler import ExecutionHandler, TCAEngine
-from src.portfolio_manager import PortfolioManager
+import src.alpha_library.features  # noqa: F401
+from src.alpha_library.models import MomentumModel, ValueModel
+from src.core.alpha_engine import SignalCombiner, SignalProcessor
+from src.core.data_platform import DataPlatform
+from src.core.execution_handler import ExecutionHandler, TCAEngine
+from src.core.portfolio_manager import PortfolioManager
+from src.gateways.base import DataProvider, ExecutionBackend
 
 
 class IntraDayInstitutionalPlugin(DataProvider, ExecutionBackend):
@@ -17,7 +19,10 @@ class IntraDayInstitutionalPlugin(DataProvider, ExecutionBackend):
     """
 
     def fetch_bars(
-        self, tickers: List[str], start: datetime, end: datetime
+        self,
+        tickers: List[str],
+        start: datetime,
+        end: datetime,
     ) -> pd.DataFrame:
         # Use 30-minute frequency for intra-day simulation
         dates = pd.date_range(start, end, freq="30min")
@@ -43,7 +48,10 @@ class IntraDayInstitutionalPlugin(DataProvider, ExecutionBackend):
         return pd.DataFrame(data)
 
     def fetch_corporate_actions(
-        self, tickers: List[str], start: datetime, end: datetime
+        self,
+        tickers: List[str],
+        start: datetime,
+        end: datetime,
     ) -> pd.DataFrame:
         return pd.DataFrame(columns=["ticker", "ex_date", "type", "ratio"])
 
@@ -59,28 +67,6 @@ class IntraDayInstitutionalPlugin(DataProvider, ExecutionBackend):
         return {t: 100.0 for t in tickers}
 
 
-class MomentumModel(AlphaModel):
-    def compute_signals(
-        self, latest: pd.DataFrame, history: pd.DataFrame
-    ) -> Dict[int, float]:
-        return {
-            iid: (float(row["rsi_14"]) - 50.0) / 100.0
-            for iid, row in latest.iterrows()
-        }
-
-
-class ValueModel(AlphaModel):
-    def compute_signals(
-        self, latest: pd.DataFrame, history: pd.DataFrame
-    ) -> Dict[int, float]:
-        signals = {}
-        for iid, row in latest.iterrows():
-            sma = float(row["sma_10"])
-            close = float(row["close"])
-            signals[iid] = -(close - sma) / sma if sma != 0 else 0.0
-        return signals
-
-
 def run_hedge_fund_simulation() -> None:
     print("=== Institutional Hedge Fund: Full Trading Day Simulation ===\n")
 
@@ -88,7 +74,9 @@ def run_hedge_fund_simulation() -> None:
     plugin = IntraDayInstitutionalPlugin()
     data = DataPlatform(provider=plugin)
     pm = PortfolioManager(
-        risk_aversion=2.0, tc_penalty=0.001, leverage_limit=1.0
+        risk_aversion=2.0,
+        tc_penalty=0.001,
+        leverage_limit=1.0,
     )
     exec_h = ExecutionHandler(backend=plugin)
 
@@ -102,7 +90,13 @@ def run_hedge_fund_simulation() -> None:
     iids = [data.get_internal_id(t) for t in tickers]
     reverse_ism = data.reverse_ism
 
-    # 3. Intra-day Simulation Loop (09:30 to 16:00)
+    # 3. Risk Model Calculation (Once at start of day)
+    print("Calculating PCA Factor Risk Model for the day...")
+    # Simulate historical returns (60 observations x 5 assets)
+    returns_history = np.random.randn(60, len(iids)) * 0.01
+    pm.update_risk_model(returns_history)
+
+    # 4. Intra-day Simulation Loop (09:30 to 16:00)
     trading_times = pd.date_range(
         sim_day + timedelta(hours=9, minutes=30),
         sim_day + timedelta(hours=16),
@@ -116,9 +110,6 @@ def run_hedge_fund_simulation() -> None:
     print("-" * 75)
 
     aum = 10_000_000.0
-
-    # Pre-calculate returns history (simulated)
-    returns_history = np.random.randn(100, len(iids)) * 0.01
 
     for ts in trading_times:
         # A. Alpha Generation
@@ -137,8 +128,8 @@ def run_hedge_fund_simulation() -> None:
             weights=[0.5, 0.5],
         )
 
-        # C. Optimization
-        weights = pm.optimize(combined, returns_history, use_pca=True)
+        # C. Optimization (Uses cached PCA Risk Model)
+        weights = pm.optimize(combined)
 
         # D. Execution (Rebalance)
         exec_h.rebalance(weights, reverse_ism, aum)

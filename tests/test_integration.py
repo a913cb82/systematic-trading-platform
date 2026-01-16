@@ -5,11 +5,11 @@ from typing import Dict, List
 import numpy as np
 import pandas as pd
 
-from src.alpha_engine import AlphaModel
-from src.base import DataProvider, ExecutionBackend
-from src.data_platform import DataPlatform
-from src.execution_handler import ExecutionHandler
-from src.portfolio_manager import PortfolioManager
+from src.core.alpha_engine import AlphaModel
+from src.core.data_platform import DataPlatform
+from src.core.execution_handler import ExecutionHandler
+from src.core.portfolio_manager import PortfolioManager
+from src.gateways.base import DataProvider, ExecutionBackend
 
 
 class MockPlugin(DataProvider, ExecutionBackend):

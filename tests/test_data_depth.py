@@ -1,7 +1,9 @@
 import unittest
 from datetime import datetime, timedelta
 
-from src.data_platform import Bar, CorporateAction, DataPlatform, Event
+import src.alpha_library.features  # noqa: F401
+from src.core.alpha_engine import FEATURES
+from src.core.data_platform import Bar, CorporateAction, DataPlatform, Event
 
 
 class TestDataPlatformDepth(unittest.TestCase):
@@ -156,7 +158,6 @@ class TestDataPlatformDepth(unittest.TestCase):
         )
 
         df = self.data.get_bars([self.iid, bench_id], t1, t2)
-        from src.alpha_engine import FEATURES
 
         df["res"] = FEATURES["returns_residual"](df)
         # Market average = (1% + 2%)/2 = 1.5%

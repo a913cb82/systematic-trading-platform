@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Dict, cast
+from typing import Dict, Optional, cast
 
 import cvxpy as cp
 import numpy as np
@@ -12,39 +12,27 @@ class RiskModel:
     ) -> np.ndarray:
         """
         Decomposes returns into factor and specific risk using PCA.
-        Sigma = B * Sigma_f * B^T + D
         """
-        # 1. Standardize returns
-        mu = returns.mean(axis=0)
-        std = returns.std(axis=0)
-        # Avoid division by zero
-        std[std == 0] = 1.0
-        z = (returns - mu) / std
+        from sklearn.decomposition import PCA
+        from sklearn.preprocessing import StandardScaler
 
-        # 2. PCA via SVD
-        # T (obs) x N (assets)
-        _, s, vh = np.linalg.svd(z, full_matrices=False)
+        scaler = StandardScaler()
+        z = scaler.fit_transform(returns)
 
-        # 3. Components (Factors)
-        # s are singular values, eigenvalues = s^2 / (T-1)
-        eigenvals = (s**2) / (returns.shape[0] - 1)
-        # B is N x K (loadings)
-        b = vh[:n_factors].T
-        sigma_f = np.diag(eigenvals[:n_factors])
+        k = min(n_factors, returns.shape[1])
+        pca = PCA(n_components=k)
+        pca.fit(z)
 
-        # 4. Factor Covariance
-        factor_cov = b @ sigma_f @ b.T
+        f_cov = (
+            pca.components_.T
+            @ np.diag(pca.explained_variance_)
+            @ pca.components_
+        )
 
-        # 5. Specific Risk (Diagonal)
-        total_var = np.diag(np.cov(z, rowvar=False))
-        # Ensure total_var is same shape as diagonal of factor_cov
-        spec_var = np.maximum(total_var - np.diag(factor_cov), 0)
-        d = np.diag(spec_var)
-
-        # 6. Reconstruct Sigma in standardized space, then scale back
-        sigma_z = factor_cov + d
-        scale = np.outer(std, std)
-        return cast(np.ndarray, sigma_z * scale)
+        spec_var = np.maximum(1.0 - np.diag(f_cov), 0)
+        sigma_z = f_cov + np.diag(spec_var)
+        std = scaler.scale_
+        return cast(np.ndarray, sigma_z * np.outer(std, std))
 
 
 class PortfolioManager:
@@ -62,6 +50,7 @@ class PortfolioManager:
         self.tc_penalty = tc_penalty
         self.leverage_limit = leverage_limit
         self.current_weights: Dict[int, float] = {}
+        self.sigma: Optional[np.ndarray] = None
 
         # Soft Constraint Scalars (Lagrange Multipliers)
         self.lambda_net = 100.0  # Net exposure (neutrality)
@@ -76,6 +65,13 @@ class PortfolioManager:
         self.peak_equity = 1.0
         self.current_equity = 1.0
         self.killed = False
+
+    def update_risk_model(self, returns_history: np.ndarray) -> None:
+        """
+        Calculates and caches the PCA-based covariance matrix.
+        Should be called once at the start of the trading day.
+        """
+        self.sigma = RiskModel.estimate_pca_covariance(returns_history)
 
     def check_safety(self, equity: float) -> bool:
         if self.killed:
@@ -98,52 +94,42 @@ class PortfolioManager:
     def optimize(
         self,
         forecasts: Dict[int, float],
-        returns_history: np.ndarray,
-        use_pca: bool = False,
+        returns_history: Optional[np.ndarray] = None,
     ) -> Dict[int, float]:
         """
-        Solves QP: Maximize Utility with Soft Penalties
+        Solves QP: Maximize Utility using cached PCA Risk Model.
         """
         try:
             iids = sorted(forecasts.keys())
             n = len(iids)
             if n == 0:
                 return self.current_weights
+
+            # 1. Covariance Retrieval & Fallback
+            if self.sigma is None or self.sigma.shape[0] != n:
+                if returns_history is None:
+                    return self.current_weights
+                self.update_risk_model(returns_history)
+
+            sigma = self.sigma
+            if sigma is None:
+                return self.current_weights
+
             mu = np.array([forecasts[i] for i in iids])
-
-            # 1. Covariance Estimation
-            if use_pca:
-                sigma = RiskModel.estimate_pca_covariance(returns_history)
-            else:
-                sigma = np.cov(returns_history, rowvar=False)
-                # Ensure sigma is 2D
-                if sigma.ndim == 0:
-                    sigma = sigma.reshape((1, 1))
-                elif sigma.ndim == 1:
-                    sigma = np.diag(sigma)
-                # Ledoit-Wolf style shrinkage
-                sigma = 0.9 * sigma + 0.1 * np.eye(n) * np.trace(sigma) / n
-                sigma += 1e-6 * np.eye(n)
-
             w = cp.Variable(n)
             prev_w = np.array([self.current_weights.get(i, 0.0) for i in iids])
 
             # 2. Objective Components
             risk = cp.quad_form(w, cp.psd_wrap(sigma))
-            # Linear Transaction Costs
             tc = self.tc_penalty * cp.norm(w - prev_w, 1)
-            # Market Impact (Square Root Law approx: Power 1.5 for cost)
             impact = 0.005 * cp.sum(cp.power(cp.abs(w - prev_w), 1.5))
 
-            # 3. Soft Constraints (Lagrange Multipliers)
-            # Net Exposure Penalty (Neutrality)
-            net_penalty = self.lambda_net * cp.square(cp.sum(w))
-            # Gross Exposure Penalty (Leverage)
-            gross_penalty = self.lambda_gross * cp.square(
+            # 3. Soft Constraints
+            net_pen = self.lambda_net * cp.square(cp.sum(w))
+            gross_pen = self.lambda_gross * cp.square(
                 cp.pos(cp.norm(w, 1) - self.leverage_limit)
             )
-            # Individual Position Penalties (instead of hard limits)
-            pos_penalty = self.lambda_pos * cp.sum(
+            pos_pen = self.lambda_pos * cp.sum(
                 cp.square(cp.pos(cp.abs(w) - self.max_pos))
             )
 
@@ -152,22 +138,18 @@ class PortfolioManager:
                 - 0.5 * self.risk_aversion * risk
                 - tc
                 - impact
-                - net_penalty
-                - gross_penalty
-                - pos_penalty
+                - net_pen
+                - gross_pen
+                - pos_pen
             )
 
-            # No hard constraints - improves solver robustness
-            prob = cp.Problem(obj)
-            prob.solve()
+            cp.Problem(obj).solve()
 
-            if w.value is None:
-                return self.current_weights
-
-            self.current_weights = {
-                iids[i]: float(w.value[i]) for i in range(n)
-            }
+            if w.value is not None:
+                self.current_weights = {
+                    iids[i]: float(w.value[i]) for i in range(n)
+                }
         except Exception:
-            return self.current_weights
+            pass
 
         return self.current_weights

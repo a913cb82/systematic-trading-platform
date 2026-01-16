@@ -4,13 +4,13 @@ from unittest.mock import MagicMock, patch
 
 import pandas as pd
 
-from src.alpaca_plugin import AlpacaDataProvider, AlpacaExecutionBackend
+from src.gateways.alpaca import AlpacaDataProvider, AlpacaExecutionBackend
 
 
 class TestAlpacaPlugin(unittest.TestCase):
     def test_alpaca_data_provider_mock(self) -> None:
         with patch(
-            "src.alpaca_plugin.StockHistoricalDataClient"
+            "src.gateways.alpaca.StockHistoricalDataClient"
         ) as mock_client:
             provider = AlpacaDataProvider("key", "secret")
             mock_bars = MagicMock()
@@ -41,7 +41,7 @@ class TestAlpacaPlugin(unittest.TestCase):
             self.assertTrue(ca.empty)
 
     def test_alpaca_execution_backend_mock(self) -> None:
-        with patch("src.alpaca_plugin.TradingClient") as mock_client:
+        with patch("src.gateways.alpaca.TradingClient") as mock_client:
             backend = AlpacaExecutionBackend("key", "secret")
 
             # Submit Order

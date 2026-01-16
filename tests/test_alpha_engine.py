@@ -5,8 +5,9 @@ from unittest.mock import MagicMock
 
 import pandas as pd
 
-from src.alpha_engine import FEATURES, AlphaModel
-from src.data_platform import Bar, DataPlatform
+import src.alpha_library.features  # noqa: F401
+from src.core.alpha_engine import FEATURES, AlphaModel
+from src.core.data_platform import Bar, DataPlatform
 
 
 class TestAlphaEngine(unittest.TestCase):
@@ -47,7 +48,7 @@ class TestAlphaEngine(unittest.TestCase):
             model.compute_signals(MagicMock(), MagicMock())
 
     def test_signal_processor(self) -> None:
-        from src.alpha_engine import SignalProcessor
+        from src.core.alpha_engine import SignalProcessor
 
         # Test Z-Score
         signals = {1: 10.0, 2: 20.0, 3: 30.0}
