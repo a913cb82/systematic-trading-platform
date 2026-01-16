@@ -5,16 +5,19 @@ import numpy as np
 import pandas as pd
 
 import src.alpha_library.features  # noqa: F401
-from src.alpha_library.models import MomentumModel, ValueModel
+from src.alpha_library.models import (
+    ResidualMomentumModel,
+    ResidualReversionModel,
+)
 from src.backtesting.engine import BacktestEngine
-from src.core.data_platform import DataPlatform
+from src.core.data_platform import DataPlatform, Event
 from src.core.portfolio_manager import PortfolioManager
 from src.gateways.base import DataProvider, ExecutionBackend
 
 
 class MarketDataMock(DataProvider, ExecutionBackend):
     """
-    Synthetic intra-day data provider.
+    Synthetic data provider.
     """
 
     def fetch_bars(
@@ -59,12 +62,15 @@ class MarketDataMock(DataProvider, ExecutionBackend):
 
 
 def run_demo() -> None:
-    print("=== Backtest Simulation ===\n")
+    print("=== Backtest Simulation: Idiosyncratic Alpha ===\n")
 
     # 1. Setup
     plugin = MarketDataMock()
     data = DataPlatform(provider=plugin)
-    pm = PortfolioManager(risk_aversion=2.0, tc_penalty=0.001)
+    # Tight safety limit to exercise logic
+    pm = PortfolioManager(
+        risk_aversion=2.0, tc_penalty=0.001, max_drawdown=-0.2
+    )
     engine = BacktestEngine(data, pm)
 
     # 2. Ingest Data
@@ -77,18 +83,28 @@ def run_demo() -> None:
         f"to {end_date.date()}..."
     )
     data.sync_data(
-        tickers, start_date - timedelta(days=5), end_date + timedelta(hours=16)
+        tickers,
+        start_date - timedelta(days=10),
+        end_date + timedelta(hours=16),
     )
 
-    # 3. Models
+    # Exercise DataPlatform: add_events and get_events
+    print("Hydrating Event Store...")
+    for t in tickers:
+        data.add_events(
+            [Event(data.get_internal_id(t), start_date, "REBAL_SIGNAL", 1.0)]
+        )
+
+    # 3. Models (Targeting residuals)
     alpha_models = [
-        MomentumModel(data, features=["rsi_14"]),
-        ValueModel(data, features=["sma_10", "close"]),
+        ResidualMomentumModel(data, features=["residual_mom_10"]),
+        ResidualReversionModel(
+            data, features=["returns_residual", "residual_vol_20"]
+        ),
     ]
 
-    # 4. Run
+    # 4. Run (Using dynamic universe from PIT Security Master)
     stats = engine.run(
-        tickers=tickers,
         start_date=start_date,
         end_date=end_date,
         alpha_models=alpha_models,
@@ -99,7 +115,7 @@ def run_demo() -> None:
     print("\n" + "=" * 40)
     print("PERFORMANCE SUMMARY")
     print("=" * 40)
-
+    print(f"Status:       {stats['status']}")
     print(f"Total Return: {stats['total_return']:.2%}")
     print(f"Sharpe Ratio: {stats['sharpe']:.2f}")
     print(f"Max Drawdown: {stats['drawdown']['max_dd']:.2%}")
@@ -109,6 +125,11 @@ def run_demo() -> None:
     attr = stats["attribution"]
     print(f"Factor PnL:    ${attr['factor']:,.2f}")
     print(f"Selection PnL: ${attr['selection']:,.2f}")
+
+    # Exercise reverse_ism and get_universe
+    print("\nFinal Universe Map:")
+    for iid in data.get_universe(end_date):
+        print(f"  {iid} -> {data.reverse_ism[iid]}")
     print("=" * 40)
 
 
