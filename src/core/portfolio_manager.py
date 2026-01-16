@@ -1,38 +1,10 @@
 from datetime import datetime
-from typing import Dict, Optional, cast
+from typing import Dict, Optional
 
 import cvxpy as cp
 import numpy as np
 
-
-class RiskModel:
-    @staticmethod
-    def estimate_pca_covariance(
-        returns: np.ndarray, n_factors: int = 5
-    ) -> np.ndarray:
-        """
-        Decomposes returns into factor and specific risk using PCA.
-        """
-        from sklearn.decomposition import PCA
-        from sklearn.preprocessing import StandardScaler
-
-        scaler = StandardScaler()
-        z = scaler.fit_transform(returns)
-
-        k = min(n_factors, returns.shape[1])
-        pca = PCA(n_components=k)
-        pca.fit(z)
-
-        f_cov = (
-            pca.components_.T
-            @ np.diag(pca.explained_variance_)
-            @ pca.components_
-        )
-
-        spec_var = np.maximum(1.0 - np.diag(f_cov), 0)
-        sigma_z = f_cov + np.diag(spec_var)
-        std = scaler.scale_
-        return cast(np.ndarray, sigma_z * np.outer(std, std))
+from src.core.risk_model import RiskModel
 
 
 class PortfolioManager:
@@ -51,6 +23,7 @@ class PortfolioManager:
         self.leverage_limit = leverage_limit
         self.current_weights: Dict[int, float] = {}
         self.sigma: Optional[np.ndarray] = None
+        self.loadings: Optional[np.ndarray] = None
 
         # Soft Constraint Scalars (Lagrange Multipliers)
         self.lambda_net = 100.0  # Net exposure (neutrality)
@@ -68,10 +41,12 @@ class PortfolioManager:
 
     def update_risk_model(self, returns_history: np.ndarray) -> None:
         """
-        Calculates and caches the PCA-based covariance matrix.
+        Calculates and caches the PCA-based risk parameters.
         Should be called once at the start of the trading day.
         """
-        self.sigma = RiskModel.estimate_pca_covariance(returns_history)
+        self.sigma, self.loadings = RiskModel.estimate_pca_covariance(
+            returns_history
+        )
 
     def check_safety(self, equity: float) -> bool:
         if self.killed:

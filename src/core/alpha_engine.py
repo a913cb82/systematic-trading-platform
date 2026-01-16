@@ -8,11 +8,15 @@ from .data_platform import DataPlatform
 
 # Global Feature Registry
 FEATURES: Dict[str, Callable[[pd.DataFrame], pd.Series]] = {}
+FEATURE_DEPS: Dict[str, List[str]] = {}
 
 
-def feature(name: str) -> Callable[[Any], Any]:
+def feature(
+    name: str, dependencies: Optional[List[str]] = None
+) -> Callable[[Any], Any]:
     def decorator(func: Callable[[pd.DataFrame], pd.Series]) -> Callable:
         FEATURES[name] = func
+        FEATURE_DEPS[name] = dependencies or []
         return func
 
     return decorator
@@ -72,6 +76,27 @@ class AlphaModel:
         self.data = data
         self.feature_names = features
 
+    def _hydrate_features(
+        self,
+        df: pd.DataFrame,
+        feature_names: List[str],
+        seen: Optional[set[str]] = None,
+    ) -> None:
+        if seen is None:
+            seen = set()
+
+        for f in feature_names:
+            if f in seen or f not in FEATURES:
+                continue
+
+            # Recursively hydrate dependencies first
+            deps = FEATURE_DEPS.get(f, [])
+            self._hydrate_features(df, deps, seen)
+
+            # Compute feature
+            df[f] = FEATURES[f](df)
+            seen.add(f)
+
     def generate_forecasts(
         self,
         internal_ids: List[int],
@@ -81,10 +106,8 @@ class AlphaModel:
         start = timestamp - pd.Timedelta(days=lookback_days)
         df = self.data.get_bars(internal_ids, start, timestamp)
 
-        # Hydrate Features
-        for f in self.feature_names:
-            if f in FEATURES:
-                df[f] = FEATURES[f](df)
+        # Hydrate requested features and all their dependencies
+        self._hydrate_features(df, self.feature_names)
 
         latest = df[df["timestamp"] == timestamp].set_index("internal_id")
 

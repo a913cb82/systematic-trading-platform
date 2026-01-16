@@ -4,6 +4,9 @@ import numpy as np
 import pandas as pd
 
 from src.core.alpha_engine import feature
+from src.core.risk_model import RiskModel
+
+MIN_SAMPLES = 2
 
 
 @feature("returns_raw")
@@ -14,13 +17,52 @@ def returns_raw(df: pd.DataFrame) -> pd.Series:
     )
 
 
-@feature("returns_residual")
+@feature("returns_residual", dependencies=["returns_raw"])
 def returns_residual(df: pd.DataFrame) -> pd.Series:
-    # Demeaned returns (idiosyncratic proxy)
-    rets = df.groupby("internal_id")["close"].pct_change(fill_method=None)
-    return cast(
-        pd.Series, rets - rets.groupby(df["timestamp"]).transform("mean")
+    """
+    Computes idiosyncratic returns via PCA factor neutralization.
+    """
+    if df.empty or "returns_raw" not in df.columns:
+        return pd.Series(dtype="float64")
+
+    # Pivot to Matrix (T x N)
+    # Using fillna(0.0) to handle the first row of returns which is always NaN
+    rets_matrix = df.pivot(
+        index="timestamp", columns="internal_id", values="returns_raw"
+    ).fillna(0.0)
+
+    if (
+        rets_matrix.shape[0] < MIN_SAMPLES
+        or rets_matrix.shape[1] < MIN_SAMPLES
+    ):
+        # Simple demeaned returns fallback
+        demeaned = df["returns_raw"].fillna(0.0) - df.groupby("timestamp")[
+            "returns_raw"
+        ].transform("mean").fillna(0.0)
+        return cast(pd.Series, demeaned)
+
+    # Use RiskModel for factor neutralization
+    rets_residual_matrix = RiskModel.get_residual_returns(rets_matrix.values)
+
+    # Map back to long-form Series
+    res_df = pd.DataFrame(
+        rets_residual_matrix,
+        index=rets_matrix.index,
+        columns=rets_matrix.columns,
     )
+    res_long = res_df.stack().reset_index()
+    res_long.columns = ["timestamp", "internal_id", "residual"]
+
+    # Ensure internal_id is same type for merge
+    res_long["internal_id"] = res_long["internal_id"].astype(
+        df["internal_id"].dtype
+    )
+
+    # Merge back to original df to ensure index alignment
+    merged = df.merge(res_long, on=["timestamp", "internal_id"], how="left")
+    result = merged["residual"].fillna(0.0)
+    result.index = df.index
+    return cast(pd.Series, result)
 
 
 @feature("sma_10")
