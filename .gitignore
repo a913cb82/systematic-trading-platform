@@ -12,12 +12,6 @@ __pycache__/
 *.so
 .python-version
 
-# Data
-/data/
-*.db
-*.parquet
-*.csv
-
 # Caches and Tools
 .pytest_cache/
 .ruff_cache/

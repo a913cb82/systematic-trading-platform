@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional, cast
 
@@ -44,9 +44,6 @@ class QueryConfig:
     timeframe: str = "1D"
     as_of: Optional[datetime] = None
     adjust: bool = True
-
-
-BAR_COLS = [f.name for f in fields(Bar) if f.name != "timestamp_knowledge"]
 
 
 class DataPlatform:

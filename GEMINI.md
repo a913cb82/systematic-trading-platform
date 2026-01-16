@@ -1,27 +1,29 @@
 # Systematic Trading System - Gemini Context
 
-This directory contains a systematic hedge fund architecture project. It is designed as a data-driven investment platform covering the end-to-end pipeline from data ingestion to trade execution.
+This repository contains a modular, data-driven investment platform designed for systematic trading. It encompasses the end-to-end pipeline from data ingestion and feature engineering to portfolio optimization and execution.
 
-## Project Structure & Current State
+## Core Documentation
 
-- **Roadmap & Tasks:** Refer to `TODO.md` to understand the current progress, active workstreams, and upcoming tasks. This is the primary source of truth for the project's evolution.
-- **Architecture Guide:** Detailed architectural principles, mathematical foundations, and implementation strategies are documented in `hedge_fund_guide.md`.
-- **High-Level Overview:** See `README.md` for a summary of core modules and the design philosophy.
+- **Philosophy & Blueprint:** `ARCHITECTURE.md` contains the primary technical specifications, mathematical foundations, and bitemporal data integrity rules.
+- **Operational Status:** `TODO.md` tracks active workstreams, roadmap progress, and current development tasks.
+- **Onboarding:** `README.md` provides a high-level summary of core modules and setup instructions.
 
 ## Technical Framework
 
-- **Language:** Python.
-- **Environment:** A virtual environment is used (typically in `.venv/`).
-- **Dependencies:** Refer to `requirements.txt` for the list of required libraries.
-- **Interfaces:** Key inter-workstream contracts are defined using Python `TypedDict` and abstract base classes. Formal signatures and data structures are maintained in the "Key Inter-Workstream Interfaces" section of `TODO.md`.
+- **Runtime:** Python 3.10+.
+- **Environment:** Managed via standard Python virtual environments (typically `.venv/`).
+- **Dependencies:** Defined in `pyproject.toml`.
+- **Quality Control:** Adheres to strict `pre-commit` hooks including `ruff` for linting/formatting, `mypy` for static type checking, and `pytest` for verification.
+- **Contract Definition:** Workstreams communicate via fixed interfaces using abstract base classes (ABCs) and structured data types (e.g., `dataclasses`, `TypedDict`) to ensure decoupling and parallel development.
 
 ## Development Principles
 
-- **Bitemporal Integrity:** All data modeling must distinguish between Event Time and Knowledge Time to eliminate look-ahead bias.
-- **Modularity:** Workstreams (Data, Alpha, Portfolio, Execution) are decoupled and communicate via fixed interfaces to allow for parallel development and independent scaling.
+- **Bitemporal Integrity:** All data modeling distinguishes between *Event Time* and *Knowledge Time* to eliminate look-ahead bias.
 - **Research-to-Production Consistency:** Logic used in backtesting must be identical to what runs in live trading to prevent online-offline skew.
+- **Modularity:** The four primary workstreams (Data, Alpha, Portfolio, Execution) are decoupled. Any change in one module should not break another if the inter-workstream interfaces are respected.
 
-## Key Commands
+## Standard Workflow
 
-- **Environment Setup:** `source .venv/bin/activate && pip install -r requirements.txt`
-- **Tests/Execution:** (Refer to `TODO.md` or specific module READMEs for task-specific execution commands as the project matures).
+- **Environment Setup:** `pip install -e ".[dev]"`
+- **Verification:** `pytest`
+- **Linting:** `pre-commit run --all-files`
