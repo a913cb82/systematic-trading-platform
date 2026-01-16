@@ -4,7 +4,6 @@ from typing import Dict, List
 import numpy as np
 import pandas as pd
 
-import src.alpha_library.features  # noqa: F401
 from src.alpha_library.models import (
     ResidualMomentumModel,
     ResidualReversionModel,
@@ -68,9 +67,8 @@ def run_demo() -> None:
     plugin = MarketDataMock()
     data = DataPlatform(provider=plugin)
     # Tight safety limit to exercise logic
-    pm = PortfolioManager(
-        risk_aversion=2.0, tc_penalty=0.001, max_drawdown=-0.2
-    )
+    pm = PortfolioManager(risk_aversion=2.0, tc_penalty=0.001)
+    pm.set_safety_limits(max_msgs=10, max_drawdown=-0.2)
     engine = BacktestEngine(data, pm)
 
     # 2. Ingest Data

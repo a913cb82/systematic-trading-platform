@@ -3,7 +3,6 @@ from datetime import datetime, timedelta
 
 import numpy as np
 
-import src.alpha_library.features  # noqa: F401
 from src.core.alpha_engine import FEATURES
 from src.core.data_platform import Bar, CorporateAction, DataPlatform, Event
 

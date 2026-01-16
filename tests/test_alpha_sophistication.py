@@ -2,7 +2,6 @@ import unittest
 
 import numpy as np
 
-import src.alpha_library.features  # noqa: F401
 from src.core.alpha_engine import SignalProcessor
 from src.core.data_platform import DataPlatform
 

@@ -38,6 +38,8 @@ class AlphaModel:
     def __init__(self, data: DataPlatform, features: List[str]):
         self.data = data
         self.feature_names = features
+        # Ensure all features are registered
+        import src.alpha_library.features  # noqa: F401
 
     def _hydrate_features(
         self,

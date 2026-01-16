@@ -9,7 +9,8 @@ from src.core.portfolio_manager import PortfolioManager
 
 class TestPortfolioManagerAdditional(unittest.TestCase):
     def test_rate_limit_reset(self) -> None:
-        pm = PortfolioManager(max_msgs_per_sec=1)
+        pm = PortfolioManager()
+        pm.set_safety_limits(max_msgs=1, max_drawdown=-0.1)
         self.assertTrue(pm.check_safety(1.0))
         self.assertFalse(pm.check_safety(1.0))
 

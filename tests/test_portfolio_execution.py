@@ -24,7 +24,8 @@ class TestPortfolioExecutionFull(unittest.TestCase):
             self.assertLessEqual(abs(w), 0.25)
 
     def test_safety_rate_limit(self) -> None:
-        pm = PortfolioManager(max_msgs_per_sec=2)
+        pm = PortfolioManager()
+        pm.set_safety_limits(max_msgs=2, max_drawdown=-0.1)
 
         self.assertTrue(pm.check_safety(1.0))
         self.assertTrue(pm.check_safety(1.0))
@@ -32,7 +33,8 @@ class TestPortfolioExecutionFull(unittest.TestCase):
         self.assertFalse(pm.check_safety(1.0))
 
     def test_safety_kill_switch(self) -> None:
-        pm = PortfolioManager(max_drawdown=-0.05)  # 5% limit
+        pm = PortfolioManager()
+        pm.set_safety_limits(max_msgs=10, max_drawdown=-0.05)  # 5% limit
 
         self.assertTrue(pm.check_safety(1.0))
         self.assertTrue(pm.check_safety(0.96))  # 4% drop - OK

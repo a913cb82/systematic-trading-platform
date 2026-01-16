@@ -8,12 +8,10 @@ from src.core.risk_model import RiskModel
 
 
 class PortfolioManager:
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
         risk_aversion: float = 1.0,
         max_pos: float = 0.2,
-        max_msgs_per_sec: int = 10,
-        max_drawdown: float = -0.1,
         tc_penalty: float = 0.001,
         leverage_limit: float = 1.0,
     ) -> None:
@@ -30,14 +28,18 @@ class PortfolioManager:
         self.lambda_gross = 50.0  # Gross leverage
         self.lambda_pos = 10.0  # Individual position limits
 
-        # Safety
+        # Safety Defaults
         self.msg_count = 0
         self.last_msg_ts = datetime.now()
-        self.max_msgs = max_msgs_per_sec
-        self.max_dd = max_drawdown
+        self.max_msgs = 10
+        self.max_dd = -0.1
         self.peak_equity = 1.0
         self.current_equity = 1.0
         self.killed = False
+
+    def set_safety_limits(self, max_msgs: int, max_drawdown: float) -> None:
+        self.max_msgs = max_msgs
+        self.max_dd = max_drawdown
 
     def update_risk_model(self, returns_history: np.ndarray) -> None:
         """

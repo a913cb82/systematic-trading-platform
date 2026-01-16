@@ -5,7 +5,6 @@ from unittest.mock import MagicMock
 
 import pandas as pd
 
-import src.alpha_library.features  # noqa: F401
 from src.core.alpha_engine import FEATURES, AlphaModel
 from src.core.data_platform import Bar, DataPlatform
 
