@@ -6,7 +6,7 @@ import pandas as pd
 import src.alpha_library.features  # noqa: F401
 from src.core.alpha_engine import AlphaEngine
 from src.core.data_platform import Bar, DataPlatform
-from src.core.types import Timeframe
+from src.core.types import QueryConfig, Timeframe
 
 
 class TestFeatureDependencies(unittest.TestCase):
@@ -36,8 +36,6 @@ class TestFeatureDependencies(unittest.TestCase):
         Verify that requesting 'residual_vol_20_30min' automatically
         hydrates 'returns_residual_30min' and 'returns_raw_30min'.
         """
-        from src.core.types import QueryConfig
-
         df = self.data.get_bars(
             [self.iid],
             QueryConfig(

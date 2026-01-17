@@ -173,7 +173,9 @@ class AlphaEngine:
         df = data.get_bars(
             internal_ids,
             QueryConfig(
-                start=start, end=config.timestamp, timeframe=config.timeframe
+                start=start,
+                end=config.timestamp,
+                timeframe=config.timeframe,
             ),
         )
         if df.empty:

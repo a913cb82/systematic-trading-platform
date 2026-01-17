@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import MagicMock
 
 import numpy as np
 
@@ -9,8 +10,6 @@ from src.core.portfolio_manager import PortfolioManager
 class TestPortfolioExecution(unittest.TestCase):
     def test_rebalance_integration(self) -> None:
         """Verify pm.optimize outputs can be passed to execution.rebalance."""
-        from unittest.mock import MagicMock
-
         backend = MagicMock()
         backend.get_positions.return_value = {"AAPL": 0.0}
         backend.get_prices.return_value = {"AAPL": 150.0}

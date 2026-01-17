@@ -1,6 +1,8 @@
+import time
 import unittest
 from datetime import datetime
 from typing import Dict, List
+from unittest.mock import patch
 
 import pandas as pd
 
@@ -16,6 +18,7 @@ from src.core.data_platform import DataPlatform, Event
 from src.core.execution_handler import (
     ExecutionHandler,
     FIXEngine,
+    Order,
     OrderState,
     TCAEngine,
 )
@@ -74,8 +77,6 @@ class TestCoverageGap(unittest.TestCase):
 
     def test_execution_state_machine(self) -> None:
         # Partial fill state transition
-        from src.core.execution_handler import Order
-
         o = Order("AAPL", 100, "BUY")
         o.update(50)
         self.assertEqual(o.state, OrderState.PARTIAL)
@@ -83,8 +84,6 @@ class TestCoverageGap(unittest.TestCase):
         self.assertEqual(o.state, OrderState.FILLED)
 
     def test_execution_rejection(self) -> None:
-        import time
-
         backend = MockExecutionBackend()
         handler = ExecutionHandler(backend)
         handler.vwap_execute("REJECT", 100, "BUY", slices=1, interval=0)
@@ -114,8 +113,8 @@ class TestCoverageGap(unittest.TestCase):
         self.assertEqual(len(secs), 1)
         self.assertEqual(secs[0].ticker, "AAPL")
 
-        # _update_timeseries empty
-        self.data._update_timeseries("bars", pd.DataFrame())
+        # _write empty
+        self.data._write("bars", pd.DataFrame())
 
         # get_events empty and with end date
         res = self.data.get_events([9999], end=self.ts)
@@ -230,8 +229,6 @@ class TestCoverageGap(unittest.TestCase):
 
     def test_alpaca_plugin_extra(self) -> None:
         # Mock API errors in get_prices and get_positions
-        from unittest.mock import patch
-
         with patch("src.gateways.alpaca.TradingClient") as mock_trade:
             inst = mock_trade.return_value
             inst.get_all_positions.side_effect = Exception("err")

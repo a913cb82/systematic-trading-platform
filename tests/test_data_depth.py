@@ -49,9 +49,8 @@ class TestDataPlatformDepth(unittest.TestCase):
 
     def test_aggregation_multi_step(self) -> None:
         """
-        Tests 1min -> 30min aggregation across multiple additions.
+        Tests 1min -> 30min aggregation via automatic read-side resampling.
         """
-        self.data.aggregate_to = [Timeframe.MIN_30]
         # Adding 30 1-min bars
         bars = []
         for i in range(30):
@@ -68,17 +67,18 @@ class TestDataPlatformDepth(unittest.TestCase):
                 )
             )
 
-        # Add in two chunks to test stateless persistence-based aggregation
+        # Add in two chunks
         self.data.add_bars(bars[:15])
         self.data.add_bars(bars[15:])
 
         # Should have one 30-min bar starting at the floor of the window
         window_start = pd.Timestamp(self.ts).floor("30min").to_pydatetime()
+        window_end = window_start + timedelta(minutes=29)
         df = self.data.get_bars(
             [self.iid],
             QueryConfig(
                 start=window_start,
-                end=window_start,
+                end=window_end,
                 timeframe=Timeframe.MIN_30,
             ),
         )
@@ -125,13 +125,34 @@ class TestDataPlatformDepth(unittest.TestCase):
                     timeframe=Timeframe.DAY,
                 ),
                 Bar(
-                    self.iid, t2, 50, 50, 50, 50, 1000, timeframe=Timeframe.DAY
+                    self.iid,
+                    t2,
+                    50,
+                    50,
+                    50,
+                    50,
+                    1000,
+                    timeframe=Timeframe.DAY,
                 ),
                 Bar(
-                    self.iid, t3, 45, 45, 45, 45, 1000, timeframe=Timeframe.DAY
+                    self.iid,
+                    t3,
+                    45,
+                    45,
+                    45,
+                    45,
+                    1000,
+                    timeframe=Timeframe.DAY,
                 ),
                 Bar(
-                    self.iid, t4, 45, 45, 45, 45, 1000, timeframe=Timeframe.DAY
+                    self.iid,
+                    t4,
+                    45,
+                    45,
+                    45,
+                    45,
+                    1000,
+                    timeframe=Timeframe.DAY,
                 ),
             ]
         )

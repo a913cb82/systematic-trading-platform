@@ -78,16 +78,15 @@ def run_live_demo() -> None:
         db_path="./.arctic_live_demo_db",
         clear=True,
         provider=MarketDataMock(),
-        aggregate_to=[Timeframe.MIN_30],
     )
     pm = PortfolioManager()
     mock_alpaca = MockAlpaca(tickers)
     executor = ExecutionHandler(mock_alpaca, data)
 
-    # Pre-populate history for models
+    # Pre-populate history for models using 1min data (lowest granularity)
     start_hist = datetime(2026, 1, 1, 0, 0)
     end_hist = datetime(2026, 1, 1, 9, 0)
-    data.sync_data(tickers, start_hist, end_hist, timeframe=Timeframe.MIN_30)
+    data.sync_data(tickers, start_hist, end_hist, timeframe=Timeframe.MINUTE)
 
     # 2. Live Simulation Loop
     current_time = datetime(2026, 1, 1, 9, 30)
@@ -96,6 +95,7 @@ def run_live_demo() -> None:
     models = [MomentumModel()]
 
     # A. Daily Risk Model & Factor Return Estimation (Once per day)
+    # Query 1min data and resample to 30min for the risk model
     hist_bars = data.get_bars(
         iids,
         QueryConfig(
@@ -127,10 +127,10 @@ def run_live_demo() -> None:
         bars = mock_alpaca.simulate_next_bars(step_time)
 
         # ExecutionHandler is the ONLY component writing to DataPlatform
+        # It writes 1min bars directly
         for b in bars:
             ticker = tickers[bars.index(b)]
             b.internal_id = ticker_to_iid[ticker]
-            # Aggregates 1min -> 30min internally and saves to PIT store
             executor.on_bar(b)
 
         # Every 30 minutes, check for rebalancing

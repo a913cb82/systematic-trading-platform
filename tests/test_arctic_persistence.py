@@ -2,7 +2,7 @@ import unittest
 from datetime import datetime
 
 from src.core.data_platform import Bar, DataPlatform
-from src.core.types import Timeframe
+from src.core.types import QueryConfig, Timeframe
 
 
 class TestArcticPersistence(unittest.TestCase):
@@ -18,7 +18,6 @@ class TestArcticPersistence(unittest.TestCase):
 
         # Create new platform instance to verify persistence
         new_data = DataPlatform(db_path=self.db_path, clear=False)
-        from src.core.types import QueryConfig
 
         df = new_data.get_bars(
             [iid], QueryConfig(start=ts, end=ts, timeframe=Timeframe.DAY)
