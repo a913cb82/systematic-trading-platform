@@ -2,7 +2,6 @@ import threading
 import time
 from typing import Dict, List, Optional
 
-from src.core.data_platform import Bar, DataPlatform
 from src.core.types import ChildOrder, Order, OrderState
 from src.gateways.base import ExecutionBackend
 
@@ -11,17 +10,11 @@ class ExecutionHandler:
     """
     Live Execution Manager.
     - Manages exchange connectivity and order state.
-    - Pass-through for real-time data ingestion into DataPlatform.
     - Centralized background thread manages child order slicing.
     """
 
-    def __init__(
-        self,
-        backend: ExecutionBackend,
-        data_platform: Optional[DataPlatform] = None,
-    ) -> None:
+    def __init__(self, backend: ExecutionBackend) -> None:
         self.backend = backend
-        self.data = data_platform
         self.orders: List[Order] = []
         self._queue: List[ChildOrder] = []
         self._lock = threading.Lock()
@@ -53,11 +46,6 @@ class ExecutionHandler:
                     child.parent.state = OrderState.REJECTED
 
             time.sleep(0.1)
-
-    def on_bar(self, bar: Bar) -> None:
-        """Pass-through ingestion to DataPlatform."""
-        if self.data:
-            self.data.add_bars([bar])
 
     def vwap_execute(
         self,

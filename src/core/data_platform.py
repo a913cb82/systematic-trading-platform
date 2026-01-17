@@ -14,7 +14,6 @@ from src.core.types import (
     Security,
     Timeframe,
 )
-from src.gateways.base import DataProvider
 
 _ARCTIC_CACHE: Dict[str, Arctic] = {}
 
@@ -22,71 +21,100 @@ _ARCTIC_CACHE: Dict[str, Arctic] = {}
 class DataPlatform:
     def __init__(
         self,
-        provider: Optional[DataProvider] = None,
+        *providers: Any,
         db_path: str = "./.arctic_db",
         clear: bool = False,
-    ) -> None:
-        self.provider = provider
+    ):
+        self.providers = providers
         self.arctic = _ARCTIC_CACHE.setdefault(
             db_path, Arctic(f"lmdb://{db_path}")
         )
         if clear and "platform" in self.arctic.list_libraries():
             self.arctic.delete_library("platform")
         self.lib = self.arctic.get_library("platform", create_if_missing=True)
-        # Simple ID counter state
-        self._id_counter = 1000
-        if self.lib.has_symbol("sec_df"):
-            df = self.lib.read("sec_df").data
-            if not df.empty:
-                self._id_counter = int(df.internal_id.max() + 1)
+        self.stream_provider = next(
+            (p for p in providers if hasattr(p, "subscribe")), None
+        )
 
-    def _clean_df(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Ensures DataFrame is Arctic-safe (no Enums)."""
-        df = df.copy()
-        for col in df.columns:
-            # Convert Enums to values
-            if df[col].dtype == object:
-                df[col] = df[col].apply(
-                    lambda x: x.value if isinstance(x, Timeframe) else x
-                )
-        return df
-
-    def _write(self, symbol: str, df: pd.DataFrame) -> None:
-        """Unified write method for all data types."""
+    def _write(self, sym: str, df: pd.DataFrame) -> None:
         if df.empty:
             return
+        df = df.copy()
+        for c in df.columns:
+            if df[c].dtype == object:
+                df[c] = df[c].apply(
+                    lambda x: x.value if isinstance(x, Timeframe) else x
+                )
+            if pd.api.types.is_datetime64_any_dtype(df[c]):
+                df[c] = pd.to_datetime(df[c]).dt.tz_localize(None)
 
-        df = self._clean_df(df).sort_index()
+        if sym in ["bars", "events", "ca_df", "sec_df"] and (
+            self.lib.has_symbol(sym)
+        ):
+            ex = self.lib.read(sym).data
+            if isinstance(ex.index, pd.DatetimeIndex):
+                ex.index = ex.index.tz_localize(None)
+            df = pd.concat(
+                [
+                    ex.reset_index()
+                    if not isinstance(ex.index, pd.RangeIndex)
+                    else ex,
+                    df.reset_index()
+                    if not isinstance(df.index, pd.RangeIndex)
+                    else df,
+                ]
+            )
 
-        # Append if timeseries (bars/events), overwrite if metadata (sec/ca)
-        if symbol in ["bars", "events"] and self.lib.has_symbol(symbol):
-            self.lib.append(symbol, df)
+        idx_col = next(
+            (c for c in ["timestamp", "ex_date"] if c in df.columns), None
+        )
+        if idx_col:
+            df = df.set_index(idx_col)
+            if isinstance(df.index, pd.DatetimeIndex):
+                df.index = df.index.tz_localize(None)
+            # PIT Deduplication: keep the version with the LATEST knowledge
+            subset = [idx_col, "internal_id"]
+            if sym == "bars":
+                subset.append("timeframe")
+            if "timestamp_knowledge" in df.columns:
+                subset.append("timestamp_knowledge")
+
+            # Ensure index column is present for subset check
+            df_check = df.reset_index() if idx_col not in df.columns else df
+            df = df_check.drop_duplicates(subset=subset, keep="last")
+            df = df.set_index(idx_col).sort_index()
+            if isinstance(df.index, pd.DatetimeIndex):
+                df.index = df.index.tz_localize(None)
         else:
-            self.lib.write(symbol, df)
+            df = df.drop_duplicates().reset_index(drop=True)
+        self.lib.write(sym, df)
 
-    # --- Security Master ---
+    def _read(self, sym: str) -> pd.DataFrame:
+        if self.lib.has_symbol(sym):
+            return self.lib.read(sym).data
+        return pd.DataFrame()
 
     @property
     def sec_df(self) -> pd.DataFrame:
-        if not self.lib.has_symbol("sec_df"):
-            return pd.DataFrame(
-                columns=["internal_id", "ticker", "start", "end", "extra"]
-            )
-        df = self.lib.read("sec_df").data
-        # Decode JSON extra field
-        if not df.empty and "extra" in df.columns:
+        df = self._read("sec_df")
+        if not df.empty:
             df["extra"] = df["extra"].apply(
                 lambda x: json.loads(x) if isinstance(x, str) else x
+            )
+        if df.empty:
+            return pd.DataFrame(
+                columns=["internal_id", "ticker", "start", "end", "extra"]
             )
         return df
 
     @property
     def ca_df(self) -> pd.DataFrame:
-        if not self.lib.has_symbol("ca_df"):
+        df = self._read("ca_df")
+        if df.empty:
             return pd.DataFrame(
                 columns=["internal_id", "ex_date", "type", "value"]
             )
-        return self.lib.read("ca_df").data
+        return df
 
     def register_security(
         self,
@@ -96,150 +124,115 @@ class DataPlatform:
         end: Optional[datetime] = None,
         **kwargs: Any,
     ) -> int:
-        start_date, end_date = (
-            start or datetime(1900, 1, 1),
-            end or datetime(2200, 1, 1),
-        )
-        # For simplicity in demo, read all is fine.
-        # Arctic doesn't index sec_df by default like SQL.
-        df = self.sec_df
-        existing = df[
-            (df.ticker == ticker)
-            & (df.start <= end_date)
-            & (df.end >= start_date)
+        s = (start or datetime(1900, 1, 1)).replace(tzinfo=None)
+        e = (end or datetime(2200, 1, 1)).replace(tzinfo=None)
+        existing = self.sec_df
+        m = existing[
+            (existing.ticker == ticker)
+            & (existing.start <= e)
+            & (existing.end >= s)
         ]
-
-        if internal_id is None and not existing.empty:
-            return int(existing.iloc[0].internal_id)
-
-        iid = internal_id or self._id_counter
-        if internal_id is None:
-            self._id_counter += 1
-
-        new_row = pd.DataFrame(
-            [asdict(Security(iid, ticker, start_date, end_date, kwargs))]
+        if not internal_id and not m.empty:
+            return int(m.iloc[0].internal_id)
+        iid = internal_id or (
+            int(existing.internal_id.max() + 1) if not existing.empty else 1000
         )
-        new_row["extra"] = new_row["extra"].apply(json.dumps)
-
-        # Metadata is small, overwrite is safer for consistency
-        if not df.empty:
-            # We must re-encode existing 'extra' before writing back
-            df["extra"] = df["extra"].apply(json.dumps)
-            full_df = pd.concat([df, new_row], ignore_index=True)
-            self._write("sec_df", full_df)
-        else:
-            self._write("sec_df", new_row)
-
+        sec = Security(
+            iid, ticker, s, e, cast(Dict[str, Any], json.dumps(kwargs))
+        )
+        self._write("sec_df", pd.DataFrame([asdict(sec)]))
         return iid
 
     def get_internal_id(
         self, ticker: str, date: Optional[datetime] = None
     ) -> int:
-        return self.register_security(ticker, start=date or datetime.now())
+        dt = (date or datetime.now()).replace(tzinfo=None)
+        return self.register_security(ticker, start=dt)
 
     def get_securities(
         self, tickers: Optional[List[str]] = None
     ) -> List[Security]:
         df = self.sec_df
-        records = (df[df.ticker.isin(tickers)] if tickers else df).to_dict(
-            "records"
-        )
-        return [Security(**r) for r in records]
+        filt = df[df.ticker.isin(tickers)] if tickers else df
+        return [Security(**r) for r in filt.to_dict("records")]
 
     def get_universe(self, date: datetime) -> List[int]:
         df = self.sec_df
-        uids = (
-            df[(df.start <= date) & (df.end >= date)]
-            .internal_id.unique()
-            .tolist()
+        dt = date.replace(tzinfo=None) if date.tzinfo else date
+        if df.empty:
+            return []
+        mask = (pd.to_datetime(df.start).dt.tz_localize(None) <= dt) & (
+            pd.to_datetime(df.end).dt.tz_localize(None) >= dt
         )
-        return [int(x) for x in uids]
+        return [int(x) for x in df[mask].internal_id.unique()]
 
     @property
     def reverse_ism(self) -> Dict[int, str]:
-        df = self.sec_df
-        return (
-            cast(Dict[int, str], df.set_index("internal_id").ticker.to_dict())
-            if not df.empty
-            else {}
-        )
-
-    # --- Data IO ---
-
-    def _as_dict(self, obj: Any) -> Dict[str, Any]:
-        d = asdict(obj)
-        for k, v in d.items():
-            if isinstance(v, Timeframe):
-                d[k] = v.value
-        return d
+        if self.sec_df.empty:
+            return {}
+        df = self.sec_df.set_index("internal_id")
+        return cast(Dict[int, str], df.ticker.to_dict())
 
     def add_bars(self, bars: List[Bar]) -> None:
-        if not bars:
-            return
-        df = pd.DataFrame([self._as_dict(b) for b in bars]).set_index(
-            "timestamp"
-        )
+        df = pd.DataFrame([asdict(b) for b in bars])
+        if not df.empty:
+            m = df.internal_id <= 0
+            if m.any():
+                df.loc[m, "internal_id"] = df[m].apply(
+                    lambda r: self.get_internal_id(
+                        r.get("_ticker") or "", r.timestamp
+                    ),
+                    1,
+                )
+            if "_ticker" in df.columns:
+                df = df.drop(columns=["_ticker"])
         self._write("bars", df)
 
-    def add_events(self, events: List[Event]) -> None:
-        df = pd.DataFrame([self._as_dict(e) for e in events])
-        if not df.empty:
-            df["value"] = df["value"].apply(json.dumps)
-        self._write("events", df.set_index("timestamp"))
+    def add_events(self, evs: List[Event]) -> None:
+        df = pd.DataFrame([asdict(e) for e in evs])
+        df = df.assign(value=lambda x: x.value.apply(json.dumps))
+        self._write("events", df)
 
     def add_ca(self, ca: CorporateAction) -> None:
-        new_row = pd.DataFrame([self._as_dict(ca)])
-        df = self.ca_df
-        if not df.empty:
-            df = pd.concat([df, new_row]).drop_duplicates()
-        else:
-            df = new_row
-        self._write("ca_df", df)
-
-    def _query_arctic(
-        self,
-        iids: List[int],
-        start: datetime,
-        end: datetime,
-        timeframe: Timeframe,
-        as_of: Optional[datetime],
-    ) -> pd.DataFrame:
-        if not self.lib.has_symbol("bars"):
-            return pd.DataFrame()
-
-        query = QueryBuilder()
-        query = query[
-            query.internal_id.isin(iids)
-            & (query.timeframe == timeframe.value)
-            & (query.timestamp >= start)
-            & (query.timestamp <= end)
-            & (query.timestamp_knowledge <= (as_of or datetime.now()))
-        ]
-        return self.lib.read("bars", query_builder=query).data.reset_index()
+        self._write("ca_df", pd.DataFrame([asdict(ca)]))
 
     def get_bars(self, iids: List[int], cfg: QueryConfig) -> pd.DataFrame:
-        # 1. Try exact match
-        df = self._query_arctic(
-            iids, cfg.start, cfg.end, cfg.timeframe, cfg.as_of
-        )
+        def q(tf: Timeframe) -> pd.DataFrame:
+            qb = QueryBuilder()
+            as_of = (cfg.as_of or datetime.now()).replace(tzinfo=None)
+            start = cfg.start.replace(tzinfo=None)
+            end = cfg.end.replace(tzinfo=None)
+            qb = qb[
+                qb.internal_id.isin(iids)
+                & (qb.timeframe == tf.value)
+                & (qb.timestamp >= start)
+                & (qb.timestamp <= end)
+            ]
+            if not self.lib.has_symbol("bars"):
+                return pd.DataFrame()
+            df = self.lib.read("bars", query_builder=qb).data.reset_index()
+            if not df.empty:
+                df["timestamp_knowledge"] = pd.to_datetime(
+                    df["timestamp_knowledge"]
+                ).dt.tz_localize(None)
+                df = df[df.timestamp_knowledge <= as_of]
+            return df
 
-        # 2. Auto-resample fallback
+        df = q(cfg.timeframe)
         if (
             df.empty
             and cfg.timeframe != Timeframe.MINUTE
             and cfg.timeframe.is_intraday
         ):
-            df = self._query_arctic(
-                iids, cfg.start, cfg.end, Timeframe.MINUTE, cfg.as_of
-            )
+            df = q(Timeframe.MINUTE)
             if not df.empty:
                 df = (
                     df.sort_values("timestamp_knowledge")
                     .groupby(["internal_id", "timestamp"])
                     .last()
                     .reset_index()
+                    .set_index("timestamp")
                 )
-                df.set_index("timestamp", inplace=True)
                 df = (
                     df.groupby("internal_id")
                     .resample(cfg.timeframe.pandas_freq)
@@ -259,46 +252,40 @@ class DataPlatform:
 
         if df.empty:
             return df
-
-        # PIT Deduplication
-        if "timestamp" not in df.index.names and "timestamp" in df.columns:
-            df = (
-                df.sort_values("timestamp_knowledge")
-                .groupby(["internal_id", "timestamp"])
-                .last()
-                .reset_index()
-            )
-
-        cols = ["open", "high", "low", "close"]
-        df[cols] = df[cols].astype("float64")
-
-        # Corporate Action Adjustments
-        ca_df = self.ca_df
-        if cfg.adjust and not ca_df.empty:
-            # Optimized filtering
-            relevant_ca = ca_df[
-                ca_df.internal_id.isin(iids) & (ca_df.ex_date <= cfg.end)
-            ].sort_values("ex_date", ascending=False)
-
-            for iid in iids:
-                adj_factor = 1.0
-                for _, r in relevant_ca[
-                    relevant_ca.internal_id == iid
-                ].iterrows():
-                    mask = (df.internal_id == iid) & (df.timestamp < r.ex_date)
-                    if r.type == "SPLIT":
-                        ratio = 1.0 / r.value
-                        df.loc[mask, cols] *= ratio
-                        adj_factor *= ratio
-                    elif r.type == "DIVIDEND":
-                        df.loc[mask, cols] -= r.value * adj_factor
-
-        return df.rename(
-            columns={
-                c: f"{c}_{cfg.timeframe.value}"
-                for c in ["open", "high", "low", "close", "volume"]
-            }
+        # Final Point-in-Time deduplication: keep the LATEST version available
+        df = (
+            df.sort_values("timestamp_knowledge")
+            .groupby(["internal_id", "timestamp"])
+            .last()
+            .reset_index()
         )
+        df[["open", "high", "low", "close"]] = df[
+            ["open", "high", "low", "close"]
+        ].astype(float)
+        if cfg.adjust and not self.ca_df.empty:
+            ca = (
+                self.ca_df.reset_index()
+                if "ex_date" in self.ca_df.index.names
+                else self.ca_df
+            )
+            mask = ca.internal_id.isin(iids) & (ca.ex_date <= cfg.end)
+            ca = ca[mask].sort_values("ex_date", ascending=False)
+            for iid in iids:
+                f = 1.0
+                for _, r in ca[ca.internal_id == iid].iterrows():
+                    m = (df.internal_id == iid) & (df.timestamp < r.ex_date)
+                    if r.type == "SPLIT":
+                        rto = 1.0 / r.value
+                        df.loc[m, ["open", "high", "low", "close"]] *= rto
+                        f *= rto
+                    else:
+                        target_cols = ["open", "high", "low", "close"]
+                        df.loc[m, target_cols] -= r.value * f
+        cols = {
+            c: f"{c}_{cfg.timeframe.value}"
+            for c in ["open", "high", "low", "close", "volume"]
+        }
+        return df.rename(columns=cols)
 
     def get_events(
         self,
@@ -308,26 +295,42 @@ class DataPlatform:
         end: Optional[datetime] = None,
         as_of: Optional[datetime] = None,
     ) -> List[Event]:
+        qb = QueryBuilder()
+        as_of_dt = (as_of or datetime.now()).replace(tzinfo=None)
+        qb = qb[qb.internal_id.isin(iids)]
         if not self.lib.has_symbol("events"):
             return []
-
-        query = QueryBuilder()
-        query = query[
-            query.internal_id.isin(iids)
-            & (query.timestamp_knowledge <= (as_of or datetime.now()))
-        ]
+        df = self.lib.read("events", query_builder=qb).data.reset_index()
+        if df.empty:
+            return []
+        df["timestamp_knowledge"] = pd.to_datetime(
+            df["timestamp_knowledge"]
+        ).dt.tz_localize(None)
+        df = df[df.timestamp_knowledge <= as_of_dt]
         if start:
-            query = query[query.timestamp >= start]
+            df = df[df.timestamp >= start.replace(tzinfo=None)]
         if end:
-            query = query[query.timestamp <= end]
+            df = df[df.timestamp <= end.replace(tzinfo=None)]
         if types:
-            query = query[query.event_type.isin(types)]
-
-        df = self.lib.read("events", query_builder=query).data.reset_index()
+            df = df[df.event_type.isin(types)]
+        # Final PIT deduplication
+        df = (
+            df.sort_values("timestamp_knowledge")
+            .groupby(["internal_id", "timestamp"])
+            .last()
+            .reset_index()
+        )
         return [
             Event(**{**r, "value": json.loads(r["value"])})
             for r in df.to_dict("records")
         ]
+
+    def start_streaming(self, tickers: List[str]) -> None:
+        if self.stream_provider:
+            self.stream_provider.subscribe(
+                tickers, lambda b: self.add_bars([b])
+            )
+            self.stream_provider.run()
 
     def sync_data(
         self,
@@ -336,53 +339,39 @@ class DataPlatform:
         end: datetime,
         timeframe: Timeframe = Timeframe.DAY,
     ) -> None:
-        if not self.provider:
-            return
-
-        def with_ids(df: pd.DataFrame, date_col: str) -> pd.DataFrame:
-            df["internal_id"] = df.apply(
-                lambda r: self.get_internal_id(r.ticker, r[date_col]), axis=1
-            )
-            return df.drop(columns=["ticker"])
-
-        # Bars
-        bars = self.provider.fetch_bars(
-            tickers, start, end, timeframe=timeframe
-        )
-        if not bars.empty:
-            if "timeframe" in bars.columns:
-                tf_series = bars["timeframe"].apply(
-                    lambda x: x.value if isinstance(x, Timeframe) else x
+        def m(df: pd.DataFrame, col: str) -> pd.DataFrame:
+            return df.assign(
+                internal_id=df.apply(
+                    lambda r: self.get_internal_id(r.ticker, r[col]), 1
                 )
-            else:
-                tf_series = pd.Series([timeframe.value] * len(bars))
+            ).drop(columns=["ticker"])
 
-            df = with_ids(bars, "timestamp").assign(
-                timestamp_knowledge=datetime.now(), timeframe=tf_series
-            )
-            self._write("bars", df.set_index("timestamp"))
-
-        # Corporate Actions
-        ca = self.provider.fetch_corporate_actions(tickers, start, end)
-        if not ca.empty:
-            if "value" not in ca.columns:
-                ca["value"] = ca.apply(
-                    lambda r: r.get("ratio") or r.get("amount") or 0.0, axis=1
-                )
-
-            # Simple overwrite logic for synced CA
-            new_ca = with_ids(ca, "ex_date")[
-                ["internal_id", "ex_date", "type", "value"]
-            ]
-            current_ca = self.ca_df
-            combined = pd.concat([current_ca, new_ca]).drop_duplicates()
-            self._write("ca_df", combined)
-
-        # Events
-        events = self.provider.fetch_events(tickers, start, end)
-        if not events.empty:
-            df = with_ids(events, "timestamp").assign(
-                timestamp_knowledge=datetime.now()
-            )
-            df["value"] = df["value"].apply(json.dumps)
-            self._write("events", df.set_index("timestamp"))
+        for p in self.providers:
+            if hasattr(p, "fetch_bars"):
+                b = p.fetch_bars(tickers, start, end, timeframe=timeframe)
+                if not b.empty:
+                    df = m(b, "timestamp").assign(
+                        timestamp_knowledge=datetime.now(),
+                        timeframe=timeframe.value,
+                    )
+                    self._write("bars", df)
+            if hasattr(p, "fetch_corporate_actions"):
+                ca = p.fetch_corporate_actions(tickers, start, end)
+                if not ca.empty:
+                    if "value" not in ca.columns:
+                        ca["value"] = ca.apply(
+                            lambda r: r.get("ratio") or r.get("amount") or 0.0,
+                            1,
+                        )
+                    df = m(ca, "ex_date")[
+                        ["internal_id", "ex_date", "type", "value"]
+                    ]
+                    self._write("ca_df", df)
+            if hasattr(p, "fetch_events"):
+                ev = p.fetch_events(tickers, start, end)
+                if not ev.empty:
+                    df = m(ev, "timestamp").assign(
+                        timestamp_knowledge=datetime.now()
+                    )
+                    df = df.assign(value=lambda x: x.value.apply(json.dumps))
+                    self._write("events", df)

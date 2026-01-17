@@ -10,10 +10,17 @@ from src.core.data_platform import DataPlatform
 from src.core.execution_handler import ExecutionHandler
 from src.core.portfolio_manager import PortfolioManager
 from src.core.types import OrderState, Timeframe
-from src.gateways.base import DataProvider, ExecutionBackend
+from src.gateways.base import (
+    BarProvider,
+    CorporateActionProvider,
+    EventProvider,
+    ExecutionBackend,
+)
 
 
-class MockPlugin(DataProvider, ExecutionBackend):
+class MockPlugin(
+    BarProvider, CorporateActionProvider, EventProvider, ExecutionBackend
+):
     def fetch_bars(
         self,
         tickers: List[str],
@@ -63,7 +70,7 @@ class TestFullSystemIntegration(unittest.TestCase):
     def test_full_lifecycle(self) -> None:
         """Simulates multiple days of the fund's lifecycle."""
         plugin = MockPlugin()
-        data = DataPlatform(provider=plugin, clear=True)
+        data = DataPlatform(plugin, clear=True)
         pm = PortfolioManager(tc_penalty=0.01)
         exec_h = ExecutionHandler(backend=plugin)
 

@@ -12,7 +12,11 @@ This repository contains a modular, data-driven investment platform designed for
 - **Runtime:** Python 3.10+.
 - **Environment:** Managed via standard Python virtual environments (typically `.venv/`).
 - **Dependencies:** Defined in `pyproject.toml`.
-- **Quality Control:** Adheres to strict `pre-commit` hooks including `ruff` for linting/formatting, `mypy` for static type checking, and `pytest` for verification.
+
+## Quality Control
+
+- **Test-Driven Development (TDD):** Utilize TDD for complex logic and bug fixes. Always attempt to write a reproducing test case before implementing a fix or new feature.
+- Adheres to strict `pre-commit` hooks including `ruff` for linting/formatting, `mypy` for static type checking, and `pytest` for verification.
 - **Contract Definition:** Workstreams communicate via fixed interfaces using abstract base classes (ABCs) and structured data types (e.g., `dataclasses`, `TypedDict`) to ensure decoupling and parallel development.
 
 ## Development Principles

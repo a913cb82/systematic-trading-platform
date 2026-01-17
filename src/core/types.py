@@ -64,6 +64,7 @@ class Bar:
     volume: float
     timeframe: Timeframe = Timeframe.DAY
     timestamp_knowledge: datetime = field(default_factory=datetime.now)
+    _ticker: Optional[str] = None
 
 
 @dataclass

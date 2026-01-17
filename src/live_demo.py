@@ -1,11 +1,13 @@
-import random
+import os
+import threading
+import time
 from datetime import datetime, timedelta
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import numpy as np
+from dotenv import load_dotenv
 
 from src.alpha_library.models import MomentumModel
-from src.backtesting.demo import MarketDataMock
 from src.core.alpha_engine import (
     AlphaEngine,
     ModelRunConfig,
@@ -15,92 +17,61 @@ from src.core.alpha_engine import (
 from src.core.data_platform import DataPlatform
 from src.core.execution_handler import ExecutionHandler
 from src.core.portfolio_manager import PortfolioManager
-from src.core.types import Bar, QueryConfig, Timeframe
-from src.gateways.base import ExecutionBackend
+from src.core.types import QueryConfig, Timeframe
+from src.gateways.alpaca import (
+    AlpacaDataProvider,
+    AlpacaExecutionBackend,
+    AlpacaRealtimeClient,
+)
+from src.gateways.base import (
+    ExecutionBackend,
+)
 
 
-class MockAlpaca(ExecutionBackend):
-    """Simulates Alpaca's behavior and real-time data stream."""
-
-    def __init__(self, tickers: List[str]) -> None:
-        self.tickers = tickers
-        self.positions: Dict[str, float] = {t: 0.0 for t in tickers}
-        self.prices: Dict[str, float] = {t: 100.0 for t in tickers}
-
-    def submit_order(self, ticker: str, quantity: float, side: str) -> bool:
-        qty = quantity if side.upper() == "BUY" else -quantity
-        self.positions[ticker] += qty
-        print(
-            f"[MOCK ALPACA] Filled {side} {quantity:.2f} {ticker} @ "
-            f"{self.prices[ticker]:.2f}"
-        )
-        return True
-
-    def get_positions(self) -> Dict[str, float]:
-        return self.positions
-
-    def get_prices(self, tickers: List[str]) -> Dict[str, float]:
-        return {t: self.prices[t] for t in tickers}
-
-    def simulate_next_bars(self, timestamp: datetime) -> List[Bar]:
-        """Generates random 1min bars."""
-        bars = []
-        for ticker in self.tickers:
-            old_price = self.prices[ticker]
-            change = random.uniform(-0.001, 0.001)
-            new_price = old_price * (1 + change)
-            self.prices[ticker] = new_price
-            bars.append(
-                Bar(
-                    internal_id=0,  # Demo will map this
-                    timestamp=timestamp,
-                    open=old_price,
-                    high=max(old_price, new_price),
-                    low=min(old_price, new_price),
-                    close=new_price,
-                    volume=100,
-                    timeframe=Timeframe.MINUTE,
-                    timestamp_knowledge=timestamp,  # Simulating knowledge time
-                )
-            )
-        return bars
+def get_alpaca_credentials() -> Tuple[str, str]:
+    load_dotenv()
+    api_key = os.getenv("APCA_API_KEY_ID") or ""
+    api_secret = os.getenv("APCA_API_SECRET_KEY") or ""
+    return api_key, api_secret
 
 
-def run_live_demo() -> None:
-    print("\n" + "=" * 50)
-    print("RUNNING STANDALONE LIVE TRADING SIMULATION")
-    print("=" * 50)
-    tickers = ["AAPL", "MSFT"]
+def setup_platform(
+    api_key: str, api_secret: str
+) -> Tuple[DataPlatform, ExecutionBackend]:
+    print("[INFO] Using Alpaca Paper Trading")
+    provider = AlpacaDataProvider(api_key, api_secret)
+    backend: ExecutionBackend = AlpacaExecutionBackend(
+        api_key, api_secret, paper=True
+    )
+    stream_provider = AlpacaRealtimeClient(api_key, api_secret)
 
-    # 1. Setup
-    # Use MarketDataMock for pre-populating history
     data = DataPlatform(
+        provider,
+        stream_provider,
         db_path="./.arctic_live_demo_db",
         clear=True,
-        provider=MarketDataMock(),
     )
+    return data, backend
+
+
+def run_strategy_loop(
+    data: DataPlatform,
+    backend: ExecutionBackend,
+    tickers: List[str],
+    iids: List[int],
+    history_range: Tuple[datetime, datetime],
+) -> None:
+    print("[STRATEGY] Loop started...")
+    start_hist, end_hist = history_range
     pm = PortfolioManager()
-    mock_alpaca = MockAlpaca(tickers)
-    executor = ExecutionHandler(mock_alpaca, data)
-
-    # Pre-populate history for models using 1min data (lowest granularity)
-    start_hist = datetime(2026, 1, 1, 0, 0)
-    end_hist = datetime(2026, 1, 1, 9, 0)
-    data.sync_data(tickers, start_hist, end_hist, timeframe=Timeframe.MINUTE)
-
-    # 2. Live Simulation Loop
-    current_time = datetime(2026, 1, 1, 9, 30)
-    ticker_to_iid = {t: data.get_internal_id(t) for t in tickers}
-    iids = list(ticker_to_iid.values())
     models = [MomentumModel()]
 
-    # A. Daily Risk Model & Factor Return Estimation (Once per day)
-    # Query 1min data and resample to 30min for the risk model
+    # Calculate initial risk model
     hist_bars = data.get_bars(
         iids,
         QueryConfig(
-            start=current_time - timedelta(days=5),
-            end=current_time - timedelta(minutes=1),
+            start=start_hist,
+            end=end_hist,
             timeframe=Timeframe.MIN_30,
         ),
     )
@@ -120,52 +91,78 @@ def run_live_demo() -> None:
             hist_f_rets = pm.get_factor_returns(pivot_rets.values)
             expected_factor_returns = np.mean(hist_f_rets, axis=0)
 
-    print(f"Trading started at {current_time}...")
-
-    for i in range(60):  # Simulate 60 minutes
-        step_time = current_time + timedelta(minutes=i)
-        bars = mock_alpaca.simulate_next_bars(step_time)
-
-        # ExecutionHandler is the ONLY component writing to DataPlatform
-        # It writes 1min bars directly
-        for b in bars:
-            ticker = tickers[bars.index(b)]
-            b.internal_id = ticker_to_iid[ticker]
-            executor.on_bar(b)
-
-        # Every 30 minutes, check for rebalancing
-        if (i + 1) % 30 == 0:
-            print(
-                f"\n[ORCHESTRATOR] Step {i + 1} | Rebalancing at {step_time}"
+    executor = ExecutionHandler(backend)
+    while True:
+        current_time = datetime.now()
+        signals = [
+            AlphaEngine.run_model(
+                data,
+                m,
+                iids,
+                ModelRunConfig(current_time, Timeframe.MIN_30),
             )
+            for m in models
+        ]
+        combined = SignalCombiner.combine(
+            [SignalProcessor.zscore(s) for s in signals]
+        )
 
-            # B. Generate Signals
-            signals = [
-                AlphaEngine.run_model(
-                    data, m, iids, ModelRunConfig(step_time, Timeframe.MIN_30)
+        pm.optimize(combined, factor_returns=expected_factor_returns)
+        prices = backend.get_prices(tickers)
+        reverse_ism = data.reverse_ism
+
+        goal_positions: Dict[str, float] = {}
+        total_equity = 100000.0
+
+        for iid, weight in pm.current_weights.items():
+            ticker = reverse_ism.get(iid)
+            if ticker and ticker in prices and prices[ticker] > 0:
+                safe_weight = max(min(weight, 0.1), -0.1)
+                goal_positions[ticker] = float(
+                    round((safe_weight * total_equity) / prices[ticker])
                 )
-                for m in models
-            ]
-            combined = SignalCombiner.combine(
-                [SignalProcessor.zscore(s) for s in signals]
-            )
 
-            # C. Optimization using cached Daily Risk Model and Factor Drift
-            pm.optimize(combined, factor_returns=expected_factor_returns)
+        orders = executor.rebalance(goal_positions, interval=0)
+        if orders:
+            print(f"[EXECUTION] Generated {len(orders)} parent orders.")
 
-            # D. Goal Position Calculation & Rebalance
-            prices = mock_alpaca.get_prices(tickers)
-            reverse_ism = data.reverse_ism
-            goal_positions = {
-                reverse_ism[iid]: (weight * 100_000.0)
-                / prices[reverse_ism[iid]]
-                for iid, weight in pm.current_weights.items()
-                if reverse_ism[iid] in prices and prices[reverse_ism[iid]] > 0
-            }
-            executor.rebalance(goal_positions, interval=0)
+        time.sleep(60)
 
-    print("\nSimulation finished.")
-    print(f"Final Positions: {mock_alpaca.get_positions()}")
+
+def run_live_demo() -> None:
+    api_key, api_secret = get_alpaca_credentials()
+    tickers = ["AAPL", "MSFT"]
+
+    if not api_key or not api_secret:
+        print("[ERROR] APCA_API_KEY_ID and APCA_API_SECRET_KEY not set")
+        return
+
+    print("\n" + "=" * 50)
+    print("RUNNING LIVE TRADING SYSTEM")
+    print("=" * 50)
+
+    data, backend = setup_platform(api_key, api_secret)
+
+    end_hist = datetime.now() - timedelta(minutes=16)
+    start_hist = end_hist - timedelta(days=5)
+
+    print(f"[INFO] Syncing history from {start_hist} to {end_hist}...")
+    data.sync_data(tickers, start_hist, end_hist, timeframe=Timeframe.MINUTE)
+
+    iids = [data.get_internal_id(t) for t in tickers]
+
+    t = threading.Thread(
+        target=run_strategy_loop,
+        args=(data, backend, tickers, iids, (start_hist, end_hist)),
+        daemon=True,
+    )
+    t.start()
+
+    print("[INFO] Starting Realtime Stream (Blocking)...")
+    try:
+        data.start_streaming(tickers)
+    except KeyboardInterrupt:
+        print("Stopping...")
 
 
 if __name__ == "__main__":

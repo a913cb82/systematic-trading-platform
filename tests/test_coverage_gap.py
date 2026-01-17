@@ -25,7 +25,12 @@ from src.core.execution_handler import (
 from src.core.portfolio_manager import PortfolioManager
 from src.core.types import Timeframe
 from src.gateways.alpaca import AlpacaExecutionBackend
-from src.gateways.base import DataProvider, ExecutionBackend
+from src.gateways.base import (
+    BarProvider,
+    CorporateActionProvider,
+    EventProvider,
+    ExecutionBackend,
+)
 
 
 class MockExecutionBackend(ExecutionBackend):
@@ -92,7 +97,10 @@ class TestCoverageGap(unittest.TestCase):
         max_wait = 1.0
         start_time = time.time()
         while time.time() - start_time < max_wait:
-            if handler.orders[0].state == OrderState.REJECTED:
+            if (
+                handler.orders
+                and handler.orders[0].state == OrderState.REJECTED
+            ):
                 break
             time.sleep(0.01)
 
@@ -126,7 +134,7 @@ class TestCoverageGap(unittest.TestCase):
         dp_no_prov.sync_data(["AAPL"], self.ts, self.ts)
 
         # with provider, test ca_df empty branch and persist_metadata at end
-        class MockProv(DataProvider):
+        class MockProv(BarProvider, CorporateActionProvider, EventProvider):
             def fetch_bars(
                 self,
                 tickers: List[str],

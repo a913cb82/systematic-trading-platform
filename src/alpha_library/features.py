@@ -47,7 +47,7 @@ def returns_residual(df: pd.DataFrame, tf: Timeframe) -> pd.Series:
     # Map back to original dataframe index
     lookup = res_df.stack().reset_index(name="res")
     merged = df.merge(lookup, on=["timestamp", "internal_id"], how="left")
-    return merged["res"]
+    return pd.Series(merged["res"].values, index=df.index)
 
 
 @multi_tf_feature(

@@ -1,10 +1,13 @@
 import logging
 from datetime import datetime
-from typing import Dict, List, cast
+from typing import Callable, Dict, List, cast
 
 import pandas as pd
 from alpaca.common.exceptions import APIError
+from alpaca.data.enums import DataFeed
 from alpaca.data.historical import StockHistoricalDataClient
+from alpaca.data.live import StockDataStream
+from alpaca.data.models import Bar as AlpacaBar
 from alpaca.data.requests import (
     StockBarsRequest,
     StockLatestQuoteRequest,
@@ -14,14 +17,20 @@ from alpaca.trading.client import TradingClient
 from alpaca.trading.enums import OrderSide, TimeInForce
 from alpaca.trading.requests import MarketOrderRequest
 
-from src.core.types import Timeframe
+from src.core.types import Bar, Timeframe
 
-from .base import DataProvider, ExecutionBackend
+from .base import (
+    BarProvider,
+    CorporateActionProvider,
+    EventProvider,
+    ExecutionBackend,
+    StreamProvider,
+)
 
 logger = logging.getLogger(__name__)
 
 
-class AlpacaDataProvider(DataProvider):
+class AlpacaDataProvider(BarProvider, CorporateActionProvider, EventProvider):
     def __init__(self, api_key: str, api_secret: str) -> None:
         self.client = StockHistoricalDataClient(api_key, api_secret)
 
@@ -31,10 +40,8 @@ class AlpacaDataProvider(DataProvider):
             Timeframe.DAY: AlpacaTimeFrame.Day,
             Timeframe.HOUR: AlpacaTimeFrame.Hour,
         }
-        # Alpaca SDK handles 5Min, 15Min etc via multiplication if needed
         if timeframe in mapping:
             return cast(AlpacaTimeFrame, mapping[timeframe])
-
         return cast(AlpacaTimeFrame, AlpacaTimeFrame.Minute)
 
     def fetch_bars(
@@ -50,10 +57,25 @@ class AlpacaDataProvider(DataProvider):
             timeframe=alpaca_tf,
             start=start,
             end=end,
+            feed=DataFeed.IEX,
         )
         try:
             bars = self.client.get_stock_bars(request_params)
-            df = getattr(bars, "df").reset_index()
+            df = getattr(bars, "df")
+            if df.empty:
+                return pd.DataFrame(
+                    columns=[
+                        "ticker",
+                        "timestamp",
+                        "open",
+                        "high",
+                        "low",
+                        "close",
+                        "volume",
+                    ]
+                )
+
+            df = df.reset_index()
             df = df.rename(columns={"symbol": "ticker"})
             return df[
                 [
@@ -73,19 +95,48 @@ class AlpacaDataProvider(DataProvider):
     def fetch_corporate_actions(
         self, tickers: List[str], start: datetime, end: datetime
     ) -> pd.DataFrame:
-        """
-        Fetch historical splits and dividends.
-        Note: Current Alpaca SDK may require specific endpoint access.
-        """
         return pd.DataFrame(columns=["ticker", "ex_date", "type", "value"])
 
     def fetch_events(
         self, tickers: List[str], start: datetime, end: datetime
     ) -> pd.DataFrame:
-        """Fetch fundamental or other irregular events."""
         return pd.DataFrame(
             columns=["ticker", "timestamp", "event_type", "value"]
         )
+
+
+class AlpacaRealtimeClient(StreamProvider):
+    def __init__(self, api_key: str, api_secret: str) -> None:
+        self.stream = StockDataStream(api_key, api_secret, feed=DataFeed.IEX)
+
+    async def _handle_bar(
+        self, data: AlpacaBar, handler: Callable[[Bar], None]
+    ) -> None:
+        internal_bar = Bar(
+            internal_id=0,
+            timestamp=data.timestamp.replace(tzinfo=None),
+            open=data.open,
+            high=data.high,
+            low=data.low,
+            close=data.close,
+            volume=data.volume,
+            timeframe=Timeframe.MINUTE,
+        )
+        # Using dict access to avoid type errors on dataclass if needed,
+        # but DataPlatform looks for it.
+        setattr(internal_bar, "_ticker", data.symbol)
+        handler(internal_bar)
+
+    def subscribe(
+        self, tickers: List[str], handler: Callable[[Bar], None]
+    ) -> None:
+        async def bar_callback(data: AlpacaBar) -> None:
+            await self._handle_bar(data, handler)
+
+        self.stream.subscribe_bars(bar_callback, *tickers)  # type: ignore[arg-type]
+
+    def run(self) -> None:
+        self.stream.run()
 
 
 class AlpacaExecutionBackend(ExecutionBackend):
@@ -101,7 +152,7 @@ class AlpacaExecutionBackend(ExecutionBackend):
             symbol=ticker,
             qty=abs(quantity),
             side=order_side,
-            time_in_force=TimeInForce.GTC,
+            time_in_force=TimeInForce.DAY,
         )
         try:
             self.client.submit_order(order_data)

@@ -1,13 +1,13 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Dict, List
+from typing import Callable, Dict, List
 
 import pandas as pd
 
-from src.core.types import Timeframe
+from src.core.types import Bar, Timeframe
 
 
-class DataProvider(ABC):
+class BarProvider(ABC):
     @abstractmethod
     def fetch_bars(
         self,
@@ -16,22 +16,39 @@ class DataProvider(ABC):
         end: datetime,
         timeframe: Timeframe = Timeframe.DAY,
     ) -> pd.DataFrame:
-        """Fetch bars for given tickers and range."""
+        """Fetch historical bars."""
         pass
 
+
+class CorporateActionProvider(ABC):
     @abstractmethod
     def fetch_corporate_actions(
         self, tickers: List[str], start: datetime, end: datetime
     ) -> pd.DataFrame:
+        """Fetch historical splits and dividends."""
         pass
 
+
+class EventProvider(ABC):
     @abstractmethod
     def fetch_events(
         self, tickers: List[str], start: datetime, end: datetime
     ) -> pd.DataFrame:
-        """
-        Returns DataFrame with columns: [ticker, timestamp, event_type, value]
-        """
+        """Fetch historical fundamental or other events."""
+        pass
+
+
+class StreamProvider(ABC):
+    @abstractmethod
+    def subscribe(
+        self, tickers: List[str], handler: Callable[[Bar], None]
+    ) -> None:
+        """Subscribes to live data for given tickers."""
+        pass
+
+    @abstractmethod
+    def run(self) -> None:
+        """Starts the realtime event loop."""
         pass
 
 

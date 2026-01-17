@@ -11,7 +11,9 @@ from src.core.data_platform import (
     Event,
 )
 from src.core.types import QueryConfig, Timeframe
-from src.gateways.base import DataProvider
+from src.gateways.base import (
+    CorporateActionProvider,
+)
 
 
 class TestDataPlatform(unittest.TestCase):
@@ -96,7 +98,7 @@ class TestDataPlatformFull(unittest.TestCase):
     def test_sync_data_with_corporate_actions(self) -> None:
         """Test that sync_data correctly ingests CA from provider."""
 
-        class MockProvider(DataProvider):
+        class MockProvider(CorporateActionProvider):
             def fetch_bars(
                 self,
                 tickers: List[str],

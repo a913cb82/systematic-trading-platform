@@ -12,10 +12,14 @@ from src.backtesting.engine import BacktestConfig, BacktestEngine
 from src.core.data_platform import DataPlatform
 from src.core.portfolio_manager import PortfolioManager
 from src.core.types import Timeframe
-from src.gateways.base import DataProvider
+from src.gateways.base import (
+    BarProvider,
+    CorporateActionProvider,
+    EventProvider,
+)
 
 
-class MarketDataMock(DataProvider):
+class MarketDataMock(BarProvider, CorporateActionProvider, EventProvider):
     def fetch_bars(
         self,
         tickers: List[str],
@@ -72,8 +76,11 @@ class MarketDataMock(DataProvider):
 
 def main() -> None:
     # 1. Setup Data & PM
-    mock = MarketDataMock()
-    data = DataPlatform(provider=mock, clear=True)
+    provider = MarketDataMock()
+    # 2. Setup
+    data = DataPlatform(
+        provider, db_path="./.arctic_backtest_demo", clear=True
+    )
     pm = PortfolioManager(max_pos=0.15, risk_aversion=1.5)
 
     # 2. Sync Data

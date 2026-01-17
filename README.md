@@ -70,7 +70,9 @@ source .venv/bin/activate
 pre-commit run --all-files
 ```
 
-## Quick Start (Simulation)
+## Quick Start
+
+### 1. Simulation (Backtest)
 To run the full intra-day simulation (Multi-alpha combination, PCA risk modeling, and PnL attribution):
 ```bash
 source .venv/bin/activate
@@ -78,3 +80,18 @@ export PYTHONPATH=$PYTHONPATH:.
 python src/backtesting/demo.py
 ```
 This runs a multi-day lifecycle including data syncing, risk model calculation, and performance analytics.
+
+### 2. Live Trading (Paper)
+To run the system against Alpaca's Paper Trading API:
+
+1.  Copy `.env.example` to `.env` and fill in your credentials:
+    ```bash
+    cp .env.example .env
+    # Edit .env with your APCA_API_KEY_ID and APCA_API_SECRET_KEY
+    ```
+2.  Run the live demo:
+    ```bash
+    export PYTHONPATH=$PYTHONPATH:.
+    python src/live_demo.py
+    ```
+    The system will automatically load the credentials from `.env` and switch from Mock to Live mode.

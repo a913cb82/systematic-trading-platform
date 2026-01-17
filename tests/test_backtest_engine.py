@@ -9,10 +9,14 @@ from src.backtesting.engine import BacktestConfig, BacktestEngine
 from src.core.data_platform import DataPlatform
 from src.core.portfolio_manager import PortfolioManager
 from src.core.types import Timeframe
-from src.gateways.base import DataProvider
+from src.gateways.base import (
+    BarProvider,
+    CorporateActionProvider,
+    EventProvider,
+)
 
 
-class MockProvider(DataProvider):
+class MockProvider(BarProvider, CorporateActionProvider, EventProvider):
     def fetch_bars(
         self,
         tickers: List[str],
@@ -20,7 +24,7 @@ class MockProvider(DataProvider):
         end: datetime,
         timeframe: Timeframe = Timeframe.DAY,
     ) -> pd.DataFrame:
-        dates = pd.date_range(start, end, freq="1H")
+        dates = pd.date_range(start, end, freq="1h")
         data = []
         for ticker in tickers:
             for ts in dates:
@@ -55,7 +59,7 @@ class TestBacktestEngine(unittest.TestCase):
     def setUp(self) -> None:
         self.provider = MockProvider()
         self.data = DataPlatform(
-            provider=self.provider, db_path="./.arctic_test_db", clear=True
+            self.provider, db_path="./.arctic_test_db", clear=True
         )
         self.pm = PortfolioManager()
         self.engine = BacktestEngine(self.data, self.pm)
