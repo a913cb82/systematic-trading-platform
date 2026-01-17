@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Dict, List
+from typing import List
 
 import pandas as pd
 
@@ -10,10 +10,10 @@ from src.alpha_library.models import (
 from src.backtesting.engine import BacktestConfig, BacktestEngine
 from src.core.data_platform import DataPlatform
 from src.core.portfolio_manager import PortfolioManager
-from src.gateways.base import DataProvider, ExecutionBackend
+from src.gateways.base import DataProvider
 
 
-class MarketDataMock(DataProvider, ExecutionBackend):
+class MarketDataMock(DataProvider):
     def fetch_bars(
         self,
         tickers: List[str],
@@ -22,13 +22,13 @@ class MarketDataMock(DataProvider, ExecutionBackend):
     ) -> pd.DataFrame:
         dates = pd.date_range(start, end, freq="30min")
         data = []
-        for t in tickers:
-            for d in dates:
-                price = 100.0 + (pd.Timestamp(d).hour - 10) * 0.1
+        for ticker in tickers:
+            for timestamp in dates:
+                price = 100.0 + (pd.Timestamp(timestamp).hour - 10) * 0.1
                 data.append(
                     {
-                        "ticker": t,
-                        "timestamp": d,
+                        "ticker": ticker,
+                        "timestamp": timestamp,
                         "open": price - 0.1,
                         "high": price + 0.5,
                         "low": price - 0.4,
@@ -47,20 +47,12 @@ class MarketDataMock(DataProvider, ExecutionBackend):
     ) -> pd.DataFrame:
         return pd.DataFrame(columns=["ticker", "ex_date", "type", "ratio"])
 
-    def submit_order(self, ticker: str, quantity: float, side: str) -> bool:
-        return True
-
-    def get_positions(self) -> Dict[str, float]:
-        return {}
-
-    def get_prices(self, tickers: List[str]) -> Dict[str, float]:
-        return {t: 100.0 for t in tickers}
-
 
 def main() -> None:
     # 1. Setup Data & PM
     mock = MarketDataMock()
-    data = DataPlatform(provider=mock)
+    # Use clear=True to ensure we sync fresh data for the demo
+    data = DataPlatform(provider=mock, clear=True)
     pm = PortfolioManager(max_pos=0.15, risk_aversion=1.5)
 
     # 2. Sync Data
