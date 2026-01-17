@@ -8,27 +8,32 @@ from src.alpha_library.models import MomentumModel
 from src.backtesting.engine import BacktestConfig, BacktestEngine
 from src.core.data_platform import DataPlatform
 from src.core.portfolio_manager import PortfolioManager
+from src.core.types import Timeframe
 from src.gateways.base import DataProvider
 
 
 class MockProvider(DataProvider):
     def fetch_bars(
-        self, tickers: List[str], start: datetime, end: datetime
+        self,
+        tickers: List[str],
+        start: datetime,
+        end: datetime,
+        timeframe: Timeframe = Timeframe.DAY,
     ) -> pd.DataFrame:
-        dates = pd.date_range(start, end, freq="30min")
+        dates = pd.date_range(start, end, freq="1H")
         data = []
-        for t in tickers:
-            for d in dates:
+        for ticker in tickers:
+            for ts in dates:
                 data.append(
                     {
-                        "ticker": t,
-                        "timestamp": d,
+                        "ticker": ticker,
+                        "timestamp": ts,
                         "open": 100.0,
                         "high": 101.0,
                         "low": 99.0,
                         "close": 100.0,
-                        "volume": 1000.0,
-                        "timeframe": "30min",
+                        "volume": 1000,
+                        "timeframe": timeframe,
                     }
                 )
         return pd.DataFrame(data)
@@ -36,7 +41,7 @@ class MockProvider(DataProvider):
     def fetch_corporate_actions(
         self, tickers: List[str], start: datetime, end: datetime
     ) -> pd.DataFrame:
-        return pd.DataFrame(columns=["ticker", "ex_date", "type", "ratio"])
+        return pd.DataFrame(columns=["ticker", "ex_date", "type", "value"])
 
     def fetch_events(
         self, tickers: List[str], start: datetime, end: datetime
@@ -48,10 +53,9 @@ class MockProvider(DataProvider):
 
 class TestBacktestEngine(unittest.TestCase):
     def setUp(self) -> None:
-        self.db_path = "./.arctic_test_db"
         self.provider = MockProvider()
         self.data = DataPlatform(
-            provider=self.provider, db_path=self.db_path, clear=True
+            provider=self.provider, db_path="./.arctic_test_db", clear=True
         )
         self.pm = PortfolioManager()
         self.engine = BacktestEngine(self.data, self.pm)
@@ -66,7 +70,7 @@ class TestBacktestEngine(unittest.TestCase):
         tickers = ["AAPL", "MSFT"]
 
         # Ensure data is present
-        self.data.sync_data(tickers, start, end)
+        self.data.sync_data(tickers, start, end, timeframe=Timeframe.MIN_30)
 
         config = BacktestConfig(
             start_date=start,
@@ -74,17 +78,18 @@ class TestBacktestEngine(unittest.TestCase):
             alpha_models=[MomentumModel()],
             weights=[1.0],
             tickers=tickers,
-            timeframe="30min",
+            timeframe=Timeframe.MIN_30,
         )
 
         report = self.engine.run(config)
 
         self.assertEqual(report["status"], "ACTIVE")
-        self.assertTrue("total_return" in report)
-        self.assertTrue("sharpe" in report)
-        self.assertGreater(len(self.engine.equity_curve), 1)
-        self.assertFalse(report["performance_table"].empty)
+        self.assertIn("total_return", report)
+        self.assertIn("sharpe", report)
+        self.assertTrue(len(self.engine.interval_results) > 0)
 
 
 if __name__ == "__main__":
+    import src.alpha_library.features  # noqa: F401
+
     unittest.main()

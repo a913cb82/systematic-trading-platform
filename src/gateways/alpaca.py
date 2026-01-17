@@ -1,42 +1,83 @@
+import logging
 from datetime import datetime
 from typing import Dict, List, cast
 
 import pandas as pd
+from alpaca.common.exceptions import APIError
 from alpaca.data.historical import StockHistoricalDataClient
-from alpaca.data.requests import StockBarsRequest
-from alpaca.data.timeframe import TimeFrame
+from alpaca.data.requests import (
+    StockBarsRequest,
+    StockLatestQuoteRequest,
+)
+from alpaca.data.timeframe import TimeFrame as AlpacaTimeFrame
 from alpaca.trading.client import TradingClient
 from alpaca.trading.enums import OrderSide, TimeInForce
 from alpaca.trading.requests import MarketOrderRequest
 
+from src.core.types import Timeframe
+
 from .base import DataProvider, ExecutionBackend
+
+logger = logging.getLogger(__name__)
 
 
 class AlpacaDataProvider(DataProvider):
     def __init__(self, api_key: str, api_secret: str) -> None:
         self.client = StockHistoricalDataClient(api_key, api_secret)
 
+    def _map_timeframe(self, timeframe: Timeframe) -> AlpacaTimeFrame:
+        mapping = {
+            Timeframe.MINUTE: AlpacaTimeFrame.Minute,
+            Timeframe.DAY: AlpacaTimeFrame.Day,
+            Timeframe.HOUR: AlpacaTimeFrame.Hour,
+        }
+        # Alpaca SDK handles 5Min, 15Min etc via multiplication if needed
+        if timeframe in mapping:
+            return cast(AlpacaTimeFrame, mapping[timeframe])
+
+        return cast(AlpacaTimeFrame, AlpacaTimeFrame.Minute)
+
     def fetch_bars(
-        self, tickers: List[str], start: datetime, end: datetime
+        self,
+        tickers: List[str],
+        start: datetime,
+        end: datetime,
+        timeframe: Timeframe = Timeframe.DAY,
     ) -> pd.DataFrame:
+        alpaca_tf = self._map_timeframe(timeframe)
         request_params = StockBarsRequest(
             symbol_or_symbols=tickers,
-            timeframe=TimeFrame.Day,
+            timeframe=alpaca_tf,
             start=start,
             end=end,
         )
-        bars = self.client.get_stock_bars(request_params)
-        df = getattr(bars, "df").reset_index()
-        df = df.rename(columns={"symbol": "ticker"})
-        return df[
-            ["ticker", "timestamp", "open", "high", "low", "close", "volume"]
-        ]
+        try:
+            bars = self.client.get_stock_bars(request_params)
+            df = getattr(bars, "df").reset_index()
+            df = df.rename(columns={"symbol": "ticker"})
+            return df[
+                [
+                    "ticker",
+                    "timestamp",
+                    "open",
+                    "high",
+                    "low",
+                    "close",
+                    "volume",
+                ]
+            ]
+        except Exception as e:
+            logger.error(f"Alpaca Fetch Bars Error: {e}")
+            return pd.DataFrame()
 
     def fetch_corporate_actions(
         self, tickers: List[str], start: datetime, end: datetime
     ) -> pd.DataFrame:
-        # Alpaca doesn't have a simple historical CA endpoint in the basic SDK.
-        return pd.DataFrame(columns=["ticker", "ex_date", "type", "ratio"])
+        """
+        Fetch historical splits and dividends.
+        Note: Current Alpaca SDK may require specific endpoint access.
+        """
+        return pd.DataFrame(columns=["ticker", "ex_date", "type", "value"])
 
     def fetch_events(
         self, tickers: List[str], start: datetime, end: datetime
@@ -66,28 +107,31 @@ class AlpacaExecutionBackend(ExecutionBackend):
             self.client.submit_order(order_data)
             return True
         except Exception as e:
-            print(f"Alpaca Order Error: {e}")
+            logger.error(f"Alpaca Order Error: {e}")
             return False
 
     def get_positions(self) -> Dict[str, float]:
-        positions = self.client.get_all_positions()
-        return {
-            cast(str, getattr(p, "symbol")): float(getattr(p, "qty"))
-            for p in positions
-        }
+        try:
+            positions = self.client.get_all_positions()
+            return {
+                cast(str, getattr(p, "symbol")): float(getattr(p, "qty"))
+                for p in positions
+            }
+        except Exception as e:
+            logger.error(f"Alpaca Get Positions Error: {e}")
+            return {}
 
     def get_prices(self, tickers: List[str]) -> Dict[str, float]:
         if not tickers:
             return {}
-        from alpaca.common.exceptions import APIError
-        from alpaca.data.requests import StockLatestQuoteRequest
 
         request_params = StockLatestQuoteRequest(symbol_or_symbols=tickers)
         try:
             quotes = self.data_client.get_stock_latest_quote(request_params)
             return {symbol: float(q.ask_price) for symbol, q in quotes.items()}
-        except APIError:
+        except APIError as e:
+            logger.error(f"Alpaca API Error: {e}")
             return {}
         except Exception as e:
-            print(f"Alpaca Price Error: {e}")
+            logger.error(f"Alpaca Price Error: {e}")
             return {}

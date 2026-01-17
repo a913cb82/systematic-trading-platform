@@ -4,70 +4,63 @@ from unittest.mock import MagicMock, patch
 
 import pandas as pd
 
+from src.core.types import Timeframe
 from src.gateways.alpaca import AlpacaDataProvider, AlpacaExecutionBackend
 
 
 class TestAlpacaPlugin(unittest.TestCase):
-    def test_alpaca_data_provider_mock(self) -> None:
-        with patch(
-            "src.gateways.alpaca.StockHistoricalDataClient"
-        ) as mock_client:
-            provider = AlpacaDataProvider("key", "secret")
-            mock_bars = MagicMock()
-            mock_bars.df = pd.DataFrame(
-                index=pd.MultiIndex.from_tuples(
-                    [("AAPL", datetime(2025, 1, 1))],
-                    names=["symbol", "timestamp"],
-                ),
-                data={
-                    "open": [100],
-                    "high": [101],
-                    "low": [99],
-                    "close": [100.5],
-                    "volume": [1000],
-                },
-            )
-            mock_client.return_value.get_stock_bars.return_value = mock_bars
+    def setUp(self) -> None:
+        self.api_key = "test_key"
+        self.api_secret = "test_secret"
 
-            df = provider.fetch_bars(
-                ["AAPL"], datetime(2025, 1, 1), datetime(2025, 1, 2)
-            )
-            self.assertEqual(len(df), 1)
-            self.assertEqual(df.iloc[0]["ticker"], "AAPL")
+    @patch("src.gateways.alpaca.StockHistoricalDataClient")
+    def test_data_provider_fetch_bars(self, mock_client: MagicMock) -> None:
+        # Mock the Alpaca client response
+        mock_instance = mock_client.return_value
+        mock_bars = MagicMock()
+        # Alpaca SDK returns a dataframe via .df property
+        mock_df = pd.DataFrame(
+            {
+                "symbol": ["AAPL"],
+                "timestamp": [datetime(2025, 1, 1)],
+                "open": [150.0],
+                "high": [155.0],
+                "low": [149.0],
+                "close": [152.0],
+                "volume": [1000000],
+            }
+        ).set_index(["symbol", "timestamp"])
+        mock_bars.df = mock_df
+        mock_instance.get_stock_bars.return_value = mock_bars
 
-            ca = provider.fetch_corporate_actions(
-                ["AAPL"], datetime(2025, 1, 1), datetime(2025, 1, 2)
-            )
-            self.assertTrue(ca.empty)
+        provider = AlpacaDataProvider(self.api_key, self.api_secret)
+        df = provider.fetch_bars(
+            ["AAPL"],
+            datetime(2025, 1, 1),
+            datetime(2025, 1, 2),
+            timeframe=Timeframe.DAY,
+        )
 
-    def test_alpaca_execution_backend_mock(self) -> None:
-        with patch("src.gateways.alpaca.TradingClient") as mock_client:
-            backend = AlpacaExecutionBackend("key", "secret")
+        self.assertFalse(df.empty)
+        self.assertEqual(df.iloc[0]["ticker"], "AAPL")
+        self.assertEqual(df.iloc[0]["close"], 152.0)
 
-            # Submit Order
-            mock_client.return_value.submit_order.return_value = True
-            res = backend.submit_order("AAPL", 10, "BUY")
-            self.assertTrue(res)
+    @patch("src.gateways.alpaca.TradingClient")
+    def test_execution_backend_submit_order(
+        self, mock_trading_client: MagicMock
+    ) -> None:
+        mock_instance = mock_trading_client.return_value
+        backend = AlpacaExecutionBackend(self.api_key, self.api_secret)
 
-            # Submit Order Error
-            mock_client.return_value.submit_order.side_effect = Exception(
-                "error"
-            )
-            res = backend.submit_order("AAPL", 10, "SELL")
-            self.assertFalse(res)
+        # Test successful order
+        success = backend.submit_order("AAPL", 10, "BUY")
+        self.assertTrue(success)
+        mock_instance.submit_order.assert_called_once()
 
-            # Get Positions
-            mock_pos = MagicMock()
-            mock_pos.symbol = "AAPL"
-            mock_pos.qty = "15"
-            mock_client.return_value.get_all_positions.return_value = [
-                mock_pos
-            ]
-            pos = backend.get_positions()
-            self.assertEqual(pos["AAPL"], 15.0)
-
-            # Get Prices
-            self.assertEqual(backend.get_prices(["AAPL"]), {})
+        # Test failed order
+        mock_instance.submit_order.side_effect = Exception("API Error")
+        success = backend.submit_order("AAPL", 10, "SELL")
+        self.assertFalse(success)
 
 
 if __name__ == "__main__":

@@ -12,9 +12,10 @@ from src.core.alpha_engine import (
     SignalCombiner,
     SignalProcessor,
 )
-from src.core.data_platform import Bar, DataPlatform, QueryConfig
+from src.core.data_platform import DataPlatform
 from src.core.execution_handler import ExecutionHandler
 from src.core.portfolio_manager import PortfolioManager
+from src.core.types import Bar, QueryConfig, Timeframe
 from src.gateways.base import ExecutionBackend
 
 
@@ -58,7 +59,7 @@ class MockAlpaca(ExecutionBackend):
                     low=min(old_price, new_price),
                     close=new_price,
                     volume=100,
-                    timeframe="1min",
+                    timeframe=Timeframe.MINUTE,
                     timestamp_knowledge=timestamp,  # Simulating knowledge time
                 )
             )
@@ -77,7 +78,7 @@ def run_live_demo() -> None:
         db_path="./.arctic_live_demo_db",
         clear=True,
         provider=MarketDataMock(),
-        aggregate_to=["30min"],
+        aggregate_to=[Timeframe.MIN_30],
     )
     pm = PortfolioManager()
     mock_alpaca = MockAlpaca(tickers)
@@ -86,7 +87,7 @@ def run_live_demo() -> None:
     # Pre-populate history for models
     start_hist = datetime(2026, 1, 1, 0, 0)
     end_hist = datetime(2026, 1, 1, 9, 0)
-    data.sync_data(tickers, start_hist, end_hist)
+    data.sync_data(tickers, start_hist, end_hist, timeframe=Timeframe.MIN_30)
 
     # 2. Live Simulation Loop
     current_time = datetime(2026, 1, 1, 9, 30)
@@ -100,14 +101,16 @@ def run_live_demo() -> None:
         QueryConfig(
             start=current_time - timedelta(days=5),
             end=current_time - timedelta(minutes=1),
-            timeframe="30min",
+            timeframe=Timeframe.MIN_30,
         ),
     )
     expected_factor_returns = None
     if not hist_bars.empty:
         pivot_rets = (
             hist_bars.pivot(
-                index="timestamp", columns="internal_id", values="close_30min"
+                index="timestamp",
+                columns="internal_id",
+                values="close_30min",
             )
             .pct_change()
             .dropna()
@@ -139,7 +142,7 @@ def run_live_demo() -> None:
             # B. Generate Signals
             signals = [
                 AlphaEngine.run_model(
-                    data, m, iids, ModelRunConfig(step_time, "30min")
+                    data, m, iids, ModelRunConfig(step_time, Timeframe.MIN_30)
                 )
                 for m in models
             ]
@@ -159,7 +162,7 @@ def run_live_demo() -> None:
                 for iid, weight in pm.current_weights.items()
                 if reverse_ism[iid] in prices and prices[reverse_ism[iid]] > 0
             }
-            executor.rebalance(goal_positions)
+            executor.rebalance(goal_positions, interval=0)
 
     print("\nSimulation finished.")
     print(f"Final Positions: {mock_alpaca.get_positions()}")

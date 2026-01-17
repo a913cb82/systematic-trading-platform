@@ -14,8 +14,9 @@ from src.core.alpha_engine import (
     SignalCombiner,
     SignalProcessor,
 )
-from src.core.data_platform import DataPlatform, QueryConfig
+from src.core.data_platform import DataPlatform
 from src.core.portfolio_manager import PortfolioManager
+from src.core.types import QueryConfig, Timeframe
 
 
 @dataclass
@@ -25,7 +26,7 @@ class BacktestConfig:
     alpha_models: List[AlphaModel]
     weights: List[float]
     tickers: Optional[List[str]] = None
-    timeframe: str = "30min"
+    timeframe: Timeframe = Timeframe.MIN_30
     slippage_bps: float = 5.0
     market_impact_coef: float = 0.1  # bps per % of capital traded
     report_freq: str = "D"
@@ -148,7 +149,7 @@ class BacktestEngine:
             if hist_df.empty:
                 continue
 
-            close_col = f"close_{config.timeframe}"
+            close_col = f"close_{config.timeframe.value}"
             pivot_rets = (
                 hist_df.pivot(
                     index="timestamp", columns="internal_id", values=close_col

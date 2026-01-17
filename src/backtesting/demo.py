@@ -11,6 +11,7 @@ from src.alpha_library.models import (
 from src.backtesting.engine import BacktestConfig, BacktestEngine
 from src.core.data_platform import DataPlatform
 from src.core.portfolio_manager import PortfolioManager
+from src.core.types import Timeframe
 from src.gateways.base import DataProvider
 
 
@@ -20,8 +21,10 @@ class MarketDataMock(DataProvider):
         tickers: List[str],
         start: datetime,
         end: datetime,
+        timeframe: Timeframe = Timeframe.DAY,
     ) -> pd.DataFrame:
-        dates = pd.date_range(start, end, freq="30min")
+        freq = timeframe.value
+        dates = pd.date_range(start, end, freq=freq)
         data = []
         for ticker in tickers:
             for timestamp in dates:
@@ -35,7 +38,7 @@ class MarketDataMock(DataProvider):
                         "low": price - 0.4,
                         "close": price,
                         "volume": 50000.0,
-                        "timeframe": "30min",
+                        "timeframe": timeframe,
                     }
                 )
         return pd.DataFrame(data)
@@ -46,7 +49,7 @@ class MarketDataMock(DataProvider):
         start: datetime,
         end: datetime,
     ) -> pd.DataFrame:
-        return pd.DataFrame(columns=["ticker", "ex_date", "type", "ratio"])
+        return pd.DataFrame(columns=["ticker", "ex_date", "type", "value"])
 
     def fetch_events(
         self, tickers: List[str], start: datetime, end: datetime
@@ -77,7 +80,7 @@ def main() -> None:
     start = datetime(2025, 1, 1)
     end = datetime(2025, 1, 5)
     tickers = ["AAPL", "MSFT", "GOOG", "TSLA", "META"]
-    data.sync_data(tickers, start, end)
+    data.sync_data(tickers, start, end, timeframe=Timeframe.MIN_30)
 
     # 3. Engine Initialization
     engine = BacktestEngine(data, pm)
@@ -96,6 +99,7 @@ def main() -> None:
             ],
             weights=[0.4, 0.4, 0.2],
             tickers=tickers,
+            timeframe=Timeframe.MIN_30,
         )
     )
 

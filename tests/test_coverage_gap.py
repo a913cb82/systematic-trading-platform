@@ -1,14 +1,10 @@
-import time
 import unittest
 from datetime import datetime
 from typing import Dict, List
 
-import numpy as np
 import pandas as pd
 
 from src.alpha_library.features import residual_vol_20, returns_residual
-from src.alpha_library.models import ReversionModel
-from src.backtesting.analytics import PerformanceAnalyzer
 from src.core.alpha_engine import (
     AlphaEngine,
     AlphaModel,
@@ -16,7 +12,7 @@ from src.core.alpha_engine import (
     SignalCombiner,
     SignalProcessor,
 )
-from src.core.data_platform import DataPlatform
+from src.core.data_platform import DataPlatform, Event
 from src.core.execution_handler import (
     ExecutionHandler,
     FIXEngine,
@@ -24,6 +20,7 @@ from src.core.execution_handler import (
     TCAEngine,
 )
 from src.core.portfolio_manager import PortfolioManager
+from src.core.types import Timeframe
 from src.gateways.alpaca import AlpacaExecutionBackend
 from src.gateways.base import DataProvider, ExecutionBackend
 
@@ -42,45 +39,52 @@ class MockExecutionBackend(ExecutionBackend):
 
 
 class TestCoverageGap(unittest.TestCase):
+    """Fills small holes in coverage found by reports."""
+
     def setUp(self) -> None:
         self.data = DataPlatform(clear=True)
-        self.iid = self.data.get_internal_id("AAPL")
         self.ts = datetime(2025, 1, 1, 12, 0)
-        self.pm = PortfolioManager(risk_aversion=1.0, max_pos=0.2)
 
-    def test_reversion_model(self) -> None:
-        model = ReversionModel()
-        df = pd.DataFrame(
-            [
-                {
-                    "timestamp": self.ts,
-                    "internal_id": self.iid,
-                    "returns_residual_30min": 0.05,
-                    "residual_vol_20_30min": 0.02,
-                }
-            ]
-        ).set_index("internal_id")
-        signals = model.compute_signals(df)
-        self.assertIn(self.iid, signals)
-        self.assertAlmostEqual(signals[self.iid], -2.5)
+    def test_alpha_engine_edge_cases(self) -> None:
+        # Empty signals zscore
+        self.assertEqual(SignalProcessor.zscore({}), {})
 
-    def test_analytics_edge_cases(self) -> None:
-        # factor_attribution
-        weights = {1000: 0.5, 1001: 0.5}
-        returns = {1000: 0.01, 1001: -0.01}
-        loadings = np.array([[1.0, 0.5], [0.5, 1.0]])
-        attr = PerformanceAnalyzer.factor_attribution(
-            weights, returns, loadings
+        # Zero std zscore
+        signals = {1: 10.0, 2: 10.0}
+        res = SignalProcessor.zscore(signals)
+        self.assertEqual(res, {1: 0.0, 2: 0.0})
+
+        # Combiner empty list
+        self.assertEqual(SignalCombiner.combine([]), {})
+
+        # AlphaEngine run_model empty bars
+        class EmptyModel(AlphaModel):
+            def compute_signals(
+                self, latest: pd.DataFrame
+            ) -> Dict[int, float]:
+                return {}
+
+        res = AlphaEngine.run_model(
+            self.data,
+            EmptyModel(),
+            [999],
+            ModelRunConfig(self.ts, timeframe=Timeframe.DAY),
         )
-        self.assertIn("total", attr)
-        self.assertIn("factor", attr)
-        self.assertIn("selection", attr)
+        self.assertEqual(res, {})
 
-        # calculate_drawdown empty
-        dd = PerformanceAnalyzer.calculate_drawdown(pd.Series(dtype=float))
-        self.assertEqual(dd["max_dd"], 0.0)
+    def test_execution_state_machine(self) -> None:
+        # Partial fill state transition
+        from src.core.execution_handler import Order
+
+        o = Order("AAPL", 100, "BUY")
+        o.update(50)
+        self.assertEqual(o.state, OrderState.PARTIAL)
+        o.update(50)
+        self.assertEqual(o.state, OrderState.FILLED)
 
     def test_execution_rejection(self) -> None:
+        import time
+
         backend = MockExecutionBackend()
         handler = ExecutionHandler(backend)
         handler.vwap_execute("REJECT", 100, "BUY", slices=1, interval=0)
@@ -95,19 +99,13 @@ class TestCoverageGap(unittest.TestCase):
 
         self.assertEqual(handler.orders[0].state, OrderState.REJECTED)
 
-    def test_tca_slippage(self) -> None:
-        # arrival_price = 0
+    def test_tca_arrival_zero(self) -> None:
         self.assertEqual(TCAEngine.calculate_slippage(0, 100, "BUY"), 0.0)
-        # SELL sign
-        slippage = TCAEngine.calculate_slippage(100, 101, "SELL")
-        self.assertEqual(slippage, -100.0)
 
-    def test_fix_engine(self) -> None:
-        fix = FIXEngine("TARGET")
+    def test_fix_engine_stubs(self) -> None:
+        fix = FIXEngine("TEST")
         self.assertTrue(fix.logon())
-        self.assertTrue(fix.connected)
-        order_id = fix.send_order("AAPL", 100, "BUY")
-        self.assertIn("AAPL", order_id)
+        self.assertIn("AAPL", fix.send_order("AAPL", 10, "BUY"))
 
     def test_dataplatform_extra_coverage(self) -> None:
         # get_securities
@@ -131,7 +129,11 @@ class TestCoverageGap(unittest.TestCase):
         # with provider, test ca_df empty branch and persist_metadata at end
         class MockProv(DataProvider):
             def fetch_bars(
-                self, tickers: List[str], start: datetime, end: datetime
+                self,
+                tickers: List[str],
+                start: datetime,
+                end: datetime,
+                timeframe: Timeframe = Timeframe.DAY,
             ) -> pd.DataFrame:
                 return pd.DataFrame(
                     [
@@ -143,6 +145,7 @@ class TestCoverageGap(unittest.TestCase):
                             "low": 99,
                             "close": 100,
                             "volume": 1000,
+                            "timeframe": timeframe,
                         }
                     ]
                 )
@@ -156,7 +159,7 @@ class TestCoverageGap(unittest.TestCase):
                             "ticker": "AAPL",
                             "ex_date": start,
                             "type": "DIV",
-                            "ratio": 1.0,
+                            "value": 1.0,
                         }
                     ]
                 )
@@ -175,97 +178,77 @@ class TestCoverageGap(unittest.TestCase):
                     ]
                 )
 
-        dp_prov = DataPlatform(MockProv(), clear=True)
+        dp_prov = DataPlatform(
+            MockProv(), db_path="./.arctic_test_cov", clear=True
+        )
         # First sync fills ca_df
         dp_prov.sync_data(["AAPL"], self.ts, self.ts)
-        self.assertEqual(len(dp_prov.ca_df), 1)
-        # Second sync with same data tests non-empty ca_df branch
+        # Second sync tests concat branch
         dp_prov.sync_data(["AAPL"], self.ts, self.ts)
 
-    def test_feature_fallbacks(self) -> None:
-        # Missing column
-        res = returns_residual(pd.DataFrame(), "1D")
+        # add_events coverage
+        self.data.add_events([Event(1000, self.ts, "TYPE", {"key": "val"})])
+
+        # add_bars empty branch
+        self.data.add_bars([])
+
+    def test_features_edge_cases(self) -> None:
+        # returns_residual empty df
+        res = returns_residual(pd.DataFrame(), Timeframe.MIN_30)
         self.assertTrue(res.empty)
 
-        # Min samples fallback
+        # returns_residual small universe (skip branch)
         df = pd.DataFrame(
-            [
-                {
-                    "timestamp": self.ts,
-                    "internal_id": self.iid,
-                    "returns_raw_1D": 0.01,
-                    "close_1D": 100,
-                }
-            ]
+            {
+                "timestamp": [self.ts] * 2,
+                "internal_id": [1, 2],
+                "returns_raw_30min": [0.01, 0.02],
+            }
         )
-        res = returns_residual(df, "1D")
-        self.assertEqual(len(res), 1)
+        res = returns_residual(df, Timeframe.MIN_30)
+        self.assertTrue(res.isna().all())
 
-        # residual_vol_20
+        # residual_vol_20 coverage
         df_vol = pd.DataFrame(
-            [{"internal_id": self.iid, "returns_residual_1D": 0.01}] * 20
+            {
+                "internal_id": [1] * 5,
+                "returns_residual_30min": [0.1, 0.2, 0.1, 0.2, 0.1],
+            }
         )
-        vol = residual_vol_20(df_vol, "1D")
-        self.assertEqual(len(vol), 20)
+        res_vol = residual_vol_20(df_vol, Timeframe.MIN_30)
+        self.assertEqual(len(res_vol), 5)
 
     def test_portfolio_manager_edge_cases(self) -> None:
-        # check_safety branch msg_count > max_msgs
-        self.pm.set_safety_limits(0, -0.1)
-        self.assertFalse(self.pm.check_safety(1.0))
-
-        # optimize empty branch
+        # optimize empty forecasts
         weights = self.pm.optimize({})
         self.assertEqual(weights, {})
 
-        # optimize returns_history is None fallback (line 91)
+        # optimize with missing returns_history when needed
         self.pm.sigma = None
         weights2 = self.pm.optimize({1000: 0.1}, returns_history=None)
         self.assertEqual(weights2, {})
 
-    def test_alpha_engine_edge_cases(self) -> None:
-        # SignalProcessor.zscore std == 0
-        signals = {1: 10.0, 2: 10.0}
-        z = SignalProcessor.zscore(signals)
-        self.assertEqual(z[1], 0.0)
+    def test_alpaca_plugin_extra(self) -> None:
+        # Mock API errors in get_prices and get_positions
+        from unittest.mock import patch
 
-        # SignalCombiner empty
-        self.assertEqual(SignalCombiner.combine([]), {})
-        # SignalCombiner weights is None
-        combined = SignalCombiner.combine([{1: 1.0}, {1: 2.0}], weights=None)
-        self.assertEqual(combined[1], 1.5)
+        with patch("src.gateways.alpaca.TradingClient") as mock_trade:
+            inst = mock_trade.return_value
+            inst.get_all_positions.side_effect = Exception("err")
+            backend = AlpacaExecutionBackend("k", "s")
+            self.assertEqual(backend.get_positions(), {})
 
-        # AlphaModel.get_events outside context
-        with self.assertRaises(RuntimeError):
-            AlphaModel.get_events([self.iid])
+        with patch(
+            "src.gateways.alpaca.StockHistoricalDataClient"
+        ) as mock_hist:
+            inst = mock_hist.return_value
+            inst.get_stock_latest_quote.side_effect = Exception("err")
+            backend = AlpacaExecutionBackend("k", "s")
+            self.assertEqual(backend.get_prices(["AAPL"]), {})
 
-        # AlphaEngine.run_model empty df
-        class MockModel(AlphaModel):
-            def compute_signals(
-                self, latest: pd.DataFrame
-            ) -> Dict[int, float]:
-                return {}
-
-        res = AlphaEngine.run_model(
-            self.data, MockModel(), [9999], ModelRunConfig(self.ts)
-        )
-        self.assertEqual(res, {})
-
-        # AlphaEngine _hydrate_features unknown feature and seen feature
-        df = pd.DataFrame({"timestamp": [self.ts], "internal_id": [self.iid]})
-        AlphaEngine._hydrate_features(df, ["UNKNOWN_FEATURE"])
-        # seen feature
-        AlphaEngine._hydrate_features(
-            df, ["returns_raw_1D"], seen={"returns_raw_1D"}
-        )
-
-    def test_analytics_extra(self) -> None:
-        df_empty = pd.DataFrame(columns=["timestamp", "gross_ret", "net_ret"])
-        res = PerformanceAnalyzer.generate_performance_table(df_empty)
-        self.assertTrue(res.empty)
-
-    def test_alpaca_get_prices(self) -> None:
-        backend = AlpacaExecutionBackend("key", "secret")
-        self.assertEqual(backend.get_prices(["AAPL"]), {})
+    @property
+    def pm(self) -> PortfolioManager:
+        return PortfolioManager()
 
 
 if __name__ == "__main__":

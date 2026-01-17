@@ -1,62 +1,22 @@
 import json
-from dataclasses import asdict, dataclass, field, fields
+from dataclasses import asdict, fields
 from datetime import datetime
 from typing import Any, Dict, List, Optional, cast
 
 import pandas as pd
 from arcticdb import Arctic, QueryBuilder
 
+from src.core.types import (
+    Bar,
+    CorporateAction,
+    Event,
+    QueryConfig,
+    Security,
+    Timeframe,
+)
 from src.gateways.base import DataProvider
 
 _ARCTIC_CACHE: Dict[str, Arctic] = {}
-
-
-@dataclass
-class Security:
-    internal_id: int
-    ticker: str
-    start: datetime
-    end: datetime
-    extra: Any
-
-
-@dataclass
-class Bar:
-    internal_id: int
-    timestamp: datetime
-    open: float
-    high: float
-    low: float
-    close: float
-    volume: float
-    timeframe: str = "1D"
-    timestamp_knowledge: datetime = field(default_factory=datetime.now)
-
-
-@dataclass
-class Event:
-    internal_id: int
-    timestamp: datetime
-    event_type: str
-    value: Any
-    timestamp_knowledge: datetime = field(default_factory=datetime.now)
-
-
-@dataclass
-class CorporateAction:
-    internal_id: int
-    ex_date: datetime
-    type: str  # SPLIT, DIVIDEND
-    value: float
-
-
-@dataclass
-class QueryConfig:
-    start: datetime
-    end: datetime
-    timeframe: str = "1D"
-    as_of: Optional[datetime] = None
-    adjust: bool = True
 
 
 class DataPlatform:
@@ -65,7 +25,7 @@ class DataPlatform:
         provider: Optional[DataProvider] = None,
         db_path: str = "./.arctic_db",
         clear: bool = False,
-        aggregate_to: Optional[List[str]] = None,
+        aggregate_to: Optional[List[Timeframe]] = None,
     ) -> None:
         self.provider = provider
         self.aggregate_to = aggregate_to
@@ -121,11 +81,24 @@ class DataPlatform:
         df = self.meta[name].copy()
         if name == "sec_df" and not df.empty:
             df["extra"] = df["extra"].apply(json.dumps)
-        self.lib.write(name, df)
+        self.lib.write(name, self._clean_df(df))
+
+    def _clean_df(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Ensures DataFrame is Arctic-safe (no Enums)."""
+        df = df.copy()
+        for col in df.columns:
+            if df[col].dtype == object:
+                df[col] = df[col].apply(
+                    lambda x: x.value if isinstance(x, Timeframe) else x
+                )
+        return df
 
     def _write_ts(self, symbol: str, df: pd.DataFrame) -> None:
         if df.empty:
             return
+
+        df = self._clean_df(df)
+
         current_data = (
             self.lib.read(symbol).data
             if self.lib.has_symbol(symbol)
@@ -233,6 +206,12 @@ class DataPlatform:
 
     # --- Data IO ---
 
+    def _as_dict(self, obj: Any) -> Dict[str, Any]:
+        d = asdict(obj)
+        if "timeframe" in d and isinstance(d["timeframe"], Timeframe):
+            d["timeframe"] = d["timeframe"].value
+        return d
+
     def add_bars(self, bars: List[Bar]) -> None:
         """
         Add bars to the platform.
@@ -242,7 +221,9 @@ class DataPlatform:
             return
 
         # 1. Persist the bars provided
-        df_new = pd.DataFrame([asdict(b) for b in bars]).set_index("timestamp")
+        df_new = pd.DataFrame([self._as_dict(b) for b in bars]).set_index(
+            "timestamp"
+        )
         self._write_ts("bars", df_new)
 
         if not self.aggregate_to:
@@ -255,16 +236,17 @@ class DataPlatform:
                     continue
 
                 # Determine the start of the current aggregation window
-                freq = target_tf.replace("min", "min")
                 window_start = (
-                    pd.Timestamp(bar.timestamp).floor(freq).to_pydatetime()
+                    pd.Timestamp(bar.timestamp)
+                    .floor(target_tf.pandas_freq)
+                    .to_pydatetime()
                 )
 
                 # Query DB for all raw bars in this window
                 query = QueryBuilder()
                 query = query[
                     (query.internal_id == bar.internal_id)
-                    & (query.timeframe == bar.timeframe)
+                    & (query.timeframe == bar.timeframe.value)
                     & (query.timestamp >= window_start)
                     & (query.timestamp <= bar.timestamp)
                 ]
@@ -273,9 +255,7 @@ class DataPlatform:
 
                 # Check if we have enough bars to form the target
                 try:
-                    target_mins = int(target_tf.replace("min", ""))
-                    source_mins = int(bar.timeframe.replace("min", ""))
-                    required_count = target_mins // source_mins
+                    required_count = target_tf.minutes // bar.timeframe.minutes
 
                     if len(window_df) >= required_count:
                         agg_bar = Bar(
@@ -291,7 +271,7 @@ class DataPlatform:
                         )
                         self._write_ts(
                             "bars",
-                            pd.DataFrame([asdict(agg_bar)]).set_index(
+                            pd.DataFrame([self._as_dict(agg_bar)]).set_index(
                                 "timestamp"
                             ),
                         )
@@ -299,13 +279,13 @@ class DataPlatform:
                     continue
 
     def add_events(self, events: List[Event]) -> None:
-        df = pd.DataFrame([asdict(e) for e in events])
+        df = pd.DataFrame([self._as_dict(e) for e in events])
         if not df.empty:
             df["value"] = df["value"].apply(json.dumps)
         self._write_ts("events", df.set_index("timestamp"))
 
     def add_ca(self, ca: CorporateAction) -> None:
-        new_row = pd.DataFrame([asdict(ca)])
+        new_row = pd.DataFrame([self._as_dict(ca)])
         if self.meta["ca_df"].empty:
             self.meta["ca_df"] = new_row
         else:
@@ -321,7 +301,7 @@ class DataPlatform:
         query = QueryBuilder()
         query = query[
             query.internal_id.isin(iids)
-            & (query.timeframe == cfg.timeframe)
+            & (query.timeframe == cfg.timeframe.value)
             & (query.timestamp >= cfg.start)
             & (query.timestamp <= cfg.end)
             & (query.timestamp_knowledge <= (cfg.as_of or datetime.now()))
@@ -371,7 +351,7 @@ class DataPlatform:
 
         return df.rename(
             columns={
-                c: f"{c}_{cfg.timeframe}"
+                c: f"{c}_{cfg.timeframe.value}"
                 for c in ["open", "high", "low", "close", "volume"]
             }
         )
@@ -405,7 +385,11 @@ class DataPlatform:
         ]
 
     def sync_data(
-        self, tickers: List[str], start: datetime, end: datetime
+        self,
+        tickers: List[str],
+        start: datetime,
+        end: datetime,
+        timeframe: Timeframe = Timeframe.DAY,
     ) -> None:
         if not self.provider:
             return
@@ -417,11 +401,20 @@ class DataPlatform:
             return df.drop(columns=["ticker"])
 
         # Bars
-        bars = self.provider.fetch_bars(tickers, start, end)
+        bars = self.provider.fetch_bars(
+            tickers, start, end, timeframe=timeframe
+        )
         if not bars.empty:
-            timeframe = bars.get("timeframe", pd.Series(["1D"] * len(bars)))
+            # Robustly handle timeframe column (convert to values if Enum)
+            if "timeframe" in bars.columns:
+                tf_series = bars["timeframe"].apply(
+                    lambda x: x.value if isinstance(x, Timeframe) else x
+                )
+            else:
+                tf_series = pd.Series([timeframe.value] * len(bars))
+
             df = with_ids(bars, "timestamp").assign(
-                timestamp_knowledge=datetime.now(), timeframe=timeframe
+                timestamp_knowledge=datetime.now(), timeframe=tf_series
             )
             self._write_ts("bars", df.set_index("timestamp"))
 
@@ -432,7 +425,6 @@ class DataPlatform:
         if not corporate_actions.empty:
             # Map amount/ratio to 'value' depending on type
             if "value" not in corporate_actions.columns:
-                # Fallback mapping if provider uses ratio/amount
                 corporate_actions["value"] = corporate_actions.apply(
                     lambda r: r.get("ratio") or r.get("amount") or 0.0, axis=1
                 )

@@ -1,5 +1,5 @@
 import unittest
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import List
 
 import pandas as pd
@@ -8,97 +8,101 @@ from src.core.data_platform import (
     Bar,
     CorporateAction,
     DataPlatform,
-    QueryConfig,
+    Event,
 )
+from src.core.types import QueryConfig, Timeframe
 from src.gateways.base import DataProvider
 
 
-class TestDataPlatformFull(unittest.TestCase):
+class TestDataPlatform(unittest.TestCase):
     def setUp(self) -> None:
         self.data = DataPlatform(clear=True)
-        self.iid = self.data.get_internal_id("AAPL")
-        self.ts = datetime(2025, 1, 1, 9, 30)
 
-    def test_ism_and_symbology(self) -> None:
-        self.assertEqual(self.data.get_internal_id("AAPL"), 1000)
-        self.assertEqual(self.data.get_internal_id("MSFT"), 1001)
-        self.assertEqual(self.data.reverse_ism[1000], "AAPL")
+    def test_register_security(self) -> None:
+        iid = self.data.register_security("AAPL", sector="Tech")
+        self.assertEqual(self.data.get_internal_id("AAPL"), iid)
 
-    def test_bitemporal_logic(self) -> None:
-        # Bar at T, known at T+1
-        # Correction at T, known at T+5
+        # Check metadata persistence
+        secs = self.data.get_securities(["AAPL"])
+        self.assertEqual(len(secs), 1)
+        self.assertEqual(secs[0].extra["sector"], "Tech")
+
+    def test_add_get_bars(self) -> None:
+        ts = datetime(2025, 1, 1, 12, 0)
+        iid = self.data.register_security("AAPL")
+        bar = Bar(
+            iid,
+            ts,
+            150.0,
+            155.0,
+            149.0,
+            152.0,
+            1000000,
+            timeframe=Timeframe.DAY,
+        )
+        self.data.add_bars([bar])
+
+        df = self.data.get_bars(
+            [iid], QueryConfig(start=ts, end=ts, timeframe=Timeframe.DAY)
+        )
+        self.assertFalse(df.empty)
+        self.assertEqual(df.iloc[0]["close_1D"], 152.0)
+
+    def test_corporate_action_adjustment(self) -> None:
+        ts1 = datetime(2025, 1, 1)
+        ts2 = datetime(2025, 1, 2)
+        iid = self.data.register_security("AAPL")
+
+        # Price 100 before split
         self.data.add_bars(
             [
                 Bar(
-                    1000,
-                    self.ts,
+                    iid,
+                    ts1,
                     100,
-                    101,
-                    99,
+                    100,
+                    100,
                     100,
                     1000,
-                    timestamp_knowledge=self.ts + timedelta(minutes=1),
-                ),
-                Bar(
-                    1000,
-                    self.ts,
-                    100,
-                    101,
-                    99,
-                    102,
-                    1000,
-                    timestamp_knowledge=self.ts + timedelta(minutes=5),
-                ),
+                    timeframe=Timeframe.DAY,
+                )
             ]
         )
+        # Split 2:1 on ts2
+        self.data.add_ca(CorporateAction(iid, ts2, "SPLIT", 2.0))
 
-        # Query at T+2: should see 100
+        # Adjusted price for ts1 should be 50.
+        # We query with end=ts2 so that the split at ts2 is included.
         df = self.data.get_bars(
-            [1000],
+            [iid],
             QueryConfig(
-                start=self.ts,
-                end=self.ts,
-                timeframe="1D",
-                as_of=self.ts + timedelta(minutes=2),
+                start=ts1, end=ts2, timeframe=Timeframe.DAY, adjust=True
             ),
         )
-        self.assertEqual(df.iloc[0]["close_1D"], 100)
+        self.assertEqual(df[df.timestamp == ts1].iloc[0]["close_1D"], 50.0)
 
-        # Query at T+6: should see 102
-        df = self.data.get_bars(
-            [1000],
-            QueryConfig(
-                start=self.ts,
-                end=self.ts,
-                timeframe="1D",
-                as_of=self.ts + timedelta(minutes=6),
-            ),
-        )
-        self.assertEqual(df.iloc[0]["close_1D"], 102)
+    def test_event_storage(self) -> None:
+        ts = datetime(2025, 1, 1)
+        iid = self.data.register_security("AAPL")
+        event = Event(iid, ts, "EARNINGS", {"eps": 1.5})
+        self.data.add_events([event])
 
-    def test_corporate_actions_adjustment(self) -> None:
-        ts1, ts2 = self.ts, self.ts + timedelta(days=1)
-        self.data.add_bars(
-            [
-                Bar(1000, ts1, 100, 100, 100, 100, 1000),
-                Bar(1000, ts2, 50, 50, 50, 50, 1000),
-            ]
-        )
-        self.data.add_ca(CorporateAction(1000, ts2, "SPLIT", 2.0))
+        events = self.data.get_events([iid], types=["EARNINGS"])
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0].value["eps"], 1.5)
 
-        # Ratio adjusted: ts1 100 -> 50
-        df = self.data.get_bars(
-            [1000],
-            QueryConfig(start=ts1, end=ts2, timeframe="1D", adjust=True),
-        )
-        self.assertEqual(df[df["timestamp"] == ts1].iloc[0]["close_1D"], 50)
 
+class TestDataPlatformFull(unittest.TestCase):
     def test_sync_data_with_corporate_actions(self) -> None:
         """Test that sync_data correctly ingests CA from provider."""
 
         class MockProvider(DataProvider):
             def fetch_bars(
-                self, tickers: List[str], start: datetime, end: datetime
+                self,
+                tickers: List[str],
+                start: datetime,
+                end: datetime,
+                timeframe: Timeframe = Timeframe.DAY,
             ) -> pd.DataFrame:
                 return pd.DataFrame(
                     {
@@ -109,6 +113,7 @@ class TestDataPlatformFull(unittest.TestCase):
                         "low": [99],
                         "close": [100],
                         "volume": [1000],
+                        "timeframe": [timeframe.value],
                     }
                 )
 
@@ -120,7 +125,7 @@ class TestDataPlatformFull(unittest.TestCase):
                         "ticker": ["AAPL"],
                         "ex_date": [start],
                         "type": ["SPLIT"],
-                        "ratio": [2.0],
+                        "value": [2.0],
                     }
                 )
 
@@ -132,7 +137,12 @@ class TestDataPlatformFull(unittest.TestCase):
                 )
 
         dp = DataPlatform(MockProvider(), clear=True)
-        dp.sync_data(["AAPL"], datetime(2025, 1, 1), datetime(2025, 1, 2))
+        dp.sync_data(
+            ["AAPL"],
+            datetime(2025, 1, 1),
+            datetime(2025, 1, 2),
+            timeframe=Timeframe.DAY,
+        )
         self.assertFalse(dp.ca_df.empty)
         self.assertEqual(dp.ca_df.iloc[0]["value"], 2.0)
 

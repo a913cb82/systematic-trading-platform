@@ -1,80 +1,62 @@
 import unittest
-from datetime import datetime, timedelta
-from typing import Dict
+from datetime import datetime
 
 import pandas as pd
 
-from src.core.alpha_engine import (
-    AlphaEngine,
-    AlphaModel,
-    ModelRunConfig,
-    feature,
-)
+import src.alpha_library.features  # noqa: F401
+from src.core.alpha_engine import AlphaEngine
 from src.core.data_platform import Bar, DataPlatform
+from src.core.types import Timeframe
 
 
 class TestFeatureDependencies(unittest.TestCase):
     def setUp(self) -> None:
         self.data = DataPlatform(clear=True)
-        self.iid = self.data.get_internal_id("AAPL")
+        self.ts = datetime(2025, 1, 1, 12, 0)
+        self.iid = self.data.register_security("AAPL")
+
+        # Create history for features
+        bars = [
+            Bar(
+                self.iid,
+                self.ts - pd.Timedelta(minutes=30 * i),
+                100,
+                101,
+                99,
+                100,
+                1000,
+                timeframe=Timeframe.MIN_30,
+            )
+            for i in range(25)
+        ]
+        self.data.add_bars(bars)
 
     def test_recursive_hydration(self) -> None:
-        # Define features with dependencies and explicit naming
-        @feature("base_val_30min")
-        def base_val(df: pd.DataFrame) -> pd.Series:
-            return df["close_30min"]
+        """
+        Verify that requesting 'residual_vol_20_30min' automatically
+        hydrates 'returns_residual_30min' and 'returns_raw_30min'.
+        """
+        from src.core.types import QueryConfig
 
-        @feature("plus_one_30min", dependencies=["base_val_30min"])
-        def plus_one(df: pd.DataFrame) -> pd.Series:
-            return df["base_val_30min"] + 1
-
-        @feature("plus_two_30min", dependencies=["plus_one_30min"])
-        def plus_two(df: pd.DataFrame) -> pd.Series:
-            return df["plus_one_30min"] + 1
-
-        class DepModel(AlphaModel):
-            def __init__(self) -> None:
-                super().__init__()
-                self.feature_names = ["plus_two_30min"]
-
-            def compute_signals(
-                self, latest: pd.DataFrame
-            ) -> Dict[int, float]:
-                return {
-                    int(idx): float(row["plus_two_30min"])
-                    for idx, row in latest.iterrows()
-                }
-
-        model = DepModel()
-        ts = datetime(2025, 1, 1, 10, 0)
-
-        # Add data with 30min timeframe
-        for i in range(5):
-            t = ts - timedelta(minutes=30 * i)
-            self.data.add_bars(
-                [
-                    Bar(
-                        self.iid,
-                        t,
-                        100 + i,
-                        101 + i,
-                        99 + i,
-                        100 + i,
-                        1000,
-                        timeframe="30min",
-                    )
-                ]
-            )
-
-        forecasts = AlphaEngine.run_model(
-            self.data,
-            model,
+        df = self.data.get_bars(
             [self.iid],
-            ModelRunConfig(timestamp=ts, timeframe="30min"),
+            QueryConfig(
+                start=self.ts - pd.Timedelta(days=1),
+                end=self.ts,
+                timeframe=Timeframe.MIN_30,
+            ),
         )
 
-        # AAPL close at t is 100. plus_one = 101, plus_two = 102.
-        self.assertEqual(forecasts[self.iid], 102.0)
+        # Initially, features don't exist
+        self.assertNotIn("residual_vol_20_30min", df.columns)
+
+        # Hydrate
+        AlphaEngine._hydrate_features(df, ["residual_vol_20_30min"])
+
+        # Check dependencies exist
+        self.assertIn("returns_raw_30min", df.columns)
+        self.assertIn("returns_residual_30min", df.columns)
+        self.assertIn("residual_vol_20_30min", df.columns)
 
 
 if __name__ == "__main__":

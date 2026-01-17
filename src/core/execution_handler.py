@@ -1,60 +1,10 @@
 import threading
 import time
-from dataclasses import dataclass
-from datetime import datetime
-from enum import Enum
 from typing import Dict, List, Optional
 
 from src.core.data_platform import Bar, DataPlatform
+from src.core.types import ChildOrder, Order, OrderState
 from src.gateways.base import ExecutionBackend
-
-
-class OrderState(Enum):
-    PENDING = "PENDING"
-    SUBMITTED = "SUBMITTED"
-    PARTIAL = "PARTIAL"
-    FILLED = "FILLED"
-    CANCELLED = "CANCELLED"
-    REJECTED = "REJECTED"
-
-    @property
-    def is_active(self) -> bool:
-        return self in (
-            OrderState.PENDING,
-            OrderState.SUBMITTED,
-            OrderState.PARTIAL,
-        )
-
-
-class Order:
-    _id_counter = 1
-    _id_lock = threading.Lock()
-
-    def __init__(self, ticker: str, quantity: float, side: str):
-        with Order._id_lock:
-            self.order_id = Order._id_counter
-            Order._id_counter += 1
-        self.ticker = ticker
-        self.quantity = quantity
-        self.filled_qty = 0.0
-        self.side = side
-        self.state = OrderState.PENDING
-        self.timestamp = datetime.now()
-
-    def update(self, fill_qty: float) -> None:
-        self.filled_qty += fill_qty
-        self.state = (
-            OrderState.FILLED
-            if self.filled_qty >= self.quantity
-            else OrderState.PARTIAL
-        )
-
-
-@dataclass
-class _ChildOrder:
-    parent: "Order"
-    quantity: float
-    scheduled_at: float
 
 
 class ExecutionHandler:
@@ -73,7 +23,7 @@ class ExecutionHandler:
         self.backend = backend
         self.data = data_platform
         self.orders: List[Order] = []
-        self._queue: List[_ChildOrder] = []
+        self._queue: List[ChildOrder] = []
         self._lock = threading.Lock()
 
         # Start centralized execution worker
@@ -131,7 +81,7 @@ class ExecutionHandler:
         with self._lock:
             for i in range(slices):
                 self._queue.append(
-                    _ChildOrder(
+                    ChildOrder(
                         parent=order,
                         quantity=qty_per_slice,
                         scheduled_at=now + (i * interval),

@@ -4,11 +4,17 @@ from typing import Dict, List
 
 import pandas as pd
 
+from src.core.types import Timeframe
+
 
 class DataProvider(ABC):
     @abstractmethod
     def fetch_bars(
-        self, tickers: List[str], start: datetime, end: datetime
+        self,
+        tickers: List[str],
+        start: datetime,
+        end: datetime,
+        timeframe: Timeframe = Timeframe.DAY,
     ) -> pd.DataFrame:
         """Fetch bars for given tickers and range."""
         pass

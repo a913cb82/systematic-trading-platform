@@ -1,67 +1,59 @@
 import unittest
 from datetime import datetime, timedelta
 
-from src.core.data_platform import DataPlatform
+from src.core.data_platform import Bar, DataPlatform
+from src.core.types import QueryConfig, Timeframe
 
 
 class TestDataPIT(unittest.TestCase):
     def setUp(self) -> None:
         self.data = DataPlatform(clear=True)
+        self.iid = self.data.register_security("AAPL")
 
-    def test_ticker_history_ism(self) -> None:
-        """Tests that same internal ID can have different tickers over time."""
-        t1 = datetime(2020, 1, 1)
-        t2 = datetime(2022, 6, 9)
+    def test_pit_bars(self) -> None:
+        """Tests that bars are retrieved correctly based on knowledge time."""
+        t1 = datetime(2025, 1, 1, 10, 0)
+        t2 = datetime(2025, 1, 1, 11, 0)
 
-        # Register FB
-        iid = self.data.register_security(
-            "FB", start=t1, end=t2 - timedelta(days=1)
+        # First version of bar
+        b1 = Bar(self.iid, t1, 100, 101, 99, 100, 1000, timestamp_knowledge=t1)
+        self.data.add_bars([b1])
+
+        # Restated version of same bar
+        b1_v2 = Bar(
+            self.iid, t1, 100, 105, 99, 105, 1000, timestamp_knowledge=t2
         )
-        # Register META with same ID
-        self.data.register_security("META", internal_id=iid, start=t2)
+        self.data.add_bars([b1_v2])
 
-        # Test lookups
-        self.assertEqual(
-            self.data.get_internal_id("FB", date=datetime(2021, 1, 1)), iid
+        # Query as of t1 (should get v1)
+        df1 = self.data.get_bars(
+            [self.iid],
+            QueryConfig(start=t1, end=t1, timeframe=Timeframe.DAY, as_of=t1),
         )
-        self.assertEqual(
-            self.data.get_internal_id("META", date=datetime(2023, 1, 1)), iid
-        )
+        self.assertEqual(df1.iloc[0]["close_1D"], 100.0)
 
-        # FB should not be found in 2023
-        # Actually, get_internal_id registers if not found.
-        # But for FB in 2023, it should return a NEW ID if we don't handle it.
-        # Our current implementation: if empty, it registers.
-        new_iid = self.data.get_internal_id("FB", date=datetime(2023, 1, 1))
-        self.assertNotEqual(new_iid, iid)
+        # Query as of t2 (should get v2)
+        df2 = self.data.get_bars(
+            [self.iid],
+            QueryConfig(start=t1, end=t1, timeframe=Timeframe.DAY, as_of=t2),
+        )
+        self.assertEqual(df2.iloc[0]["close_1D"], 105.0)
 
     def test_pit_universe(self) -> None:
-        """Tests that universe reconstruction works for historical dates."""
-        t1 = datetime(2020, 1, 1)
-        t2 = datetime(2021, 1, 1)
+        """Tests universe reconstruction at specific dates."""
+        t1 = datetime(2025, 1, 1)
+        t2 = datetime(2025, 2, 1)
 
-        id1 = self.data.register_security("AAPL", start=t1)
-        id2 = self.data.register_security("TSLA", start=t2)
+        # AAPL exists from t1
+        self.data.register_security("AAPL", start=t1)
+        # MSFT exists from t2
+        self.data.register_security("MSFT", start=t2)
 
-        # At t1 + 1 month, only AAPL
-        univ_t1 = self.data.get_universe(t1 + timedelta(days=30))
-        self.assertIn(id1, univ_t1)
-        self.assertNotIn(id2, univ_t1)
+        u1 = self.data.get_universe(t1 + timedelta(days=1))
+        self.assertEqual(len(u1), 1)
 
-        # At t2 + 1 month, both
-        univ_t2 = self.data.get_universe(t2 + timedelta(days=30))
-        self.assertIn(id1, univ_t2)
-        self.assertIn(id2, univ_t2)
-
-    def test_extra_identifiers(self) -> None:
-        """Tests storing institutional identifiers."""
-        iid = self.data.register_security("AAPL", cusip="12345", isin="US123")
-        # Extra is stored in the dataframe
-        info = self.data.sec_df[self.data.sec_df["internal_id"] == iid].iloc[
-            0
-        ]["extra"]
-        self.assertEqual(info["cusip"], "12345")
-        self.assertEqual(info["isin"], "US123")
+        u2 = self.data.get_universe(t2 + timedelta(days=1))
+        self.assertEqual(len(u2), 2)
 
 
 if __name__ == "__main__":

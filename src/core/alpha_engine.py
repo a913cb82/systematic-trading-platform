@@ -8,7 +8,9 @@ from typing import Callable, Dict, Generator, List, Optional
 import numpy as np
 import pandas as pd
 
-from .data_platform import DataPlatform, Event, QueryConfig
+from src.core.types import Event, QueryConfig, Timeframe
+
+from .data_platform import DataPlatform
 
 # Global Feature Registry
 FEATURES: Dict[str, Callable[[pd.DataFrame], pd.Series]] = {}
@@ -40,7 +42,7 @@ def alpha_context(
 @dataclass
 class ModelRunConfig:
     timestamp: datetime
-    timeframe: str = "1D"
+    timeframe: Timeframe = Timeframe.DAY
     lookback_days: int = 30
 
 
@@ -60,20 +62,22 @@ def feature(
 
 
 def multi_tf_feature(
-    name: str, timeframes: List[str], dependencies: Optional[List[str]] = None
+    name: str,
+    timeframes: List[Timeframe],
+    dependencies: Optional[List[str]] = None,
 ) -> Callable[
-    [Callable[[pd.DataFrame, str], pd.Series]],
-    Callable[[pd.DataFrame, str], pd.Series],
+    [Callable[[pd.DataFrame, Timeframe], pd.Series]],
+    Callable[[pd.DataFrame, Timeframe], pd.Series],
 ]:
     def decorator(
-        func: Callable[[pd.DataFrame, str], pd.Series],
-    ) -> Callable[[pd.DataFrame, str], pd.Series]:
+        func: Callable[[pd.DataFrame, Timeframe], pd.Series],
+    ) -> Callable[[pd.DataFrame, Timeframe], pd.Series]:
         for tf in timeframes:
-            full_name = f"{name}_{tf}"
-            tf_deps = [f"{d}_{tf}" for d in (dependencies or [])]
+            full_name = f"{name}_{tf.value}"
+            tf_deps = [f"{d}_{tf.value}" for d in (dependencies or [])]
 
             def make_wrapper(
-                current_tf: str,
+                current_tf: Timeframe,
             ) -> Callable[[pd.DataFrame], pd.Series]:
                 return lambda df: func(df, current_tf)
 

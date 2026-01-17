@@ -1,91 +1,90 @@
-from typing import cast
-
+import numpy as np
 import pandas as pd
 
-from src.core.alpha_engine import multi_tf_feature
+from src.core.alpha_engine import feature, multi_tf_feature
 from src.core.risk_model import RiskModel
-
-MIN_SAMPLES = 2
-
-TIMEFRAMES = ["30min", "1D"]
+from src.core.types import Timeframe
 
 
-@multi_tf_feature("returns_raw", TIMEFRAMES)
-def returns_raw(df: pd.DataFrame, tf: str) -> pd.Series:
-    return cast(
-        pd.Series,
-        df.groupby("internal_id")[f"close_{tf}"].pct_change(fill_method=None),
-    )
+@multi_tf_feature(
+    name="returns_raw", timeframes=[Timeframe.DAY, Timeframe.MIN_30]
+)
+def returns_raw(df: pd.DataFrame, tf: Timeframe) -> pd.Series:
+    col = f"close_{tf.value}"
+    return df.groupby("internal_id")[col].pct_change()
 
 
-@multi_tf_feature("returns_residual", TIMEFRAMES, dependencies=["returns_raw"])
-def returns_residual(df: pd.DataFrame, tf: str) -> pd.Series:
-    """
-    Computes idiosyncratic returns via PCA factor neutralization.
-    """
-    raw_col = f"returns_raw_{tf}"
-    if df.empty or raw_col not in df.columns:
-        return pd.Series(dtype="float64")
+@multi_tf_feature(
+    name="returns_residual",
+    timeframes=[Timeframe.MIN_30],
+    dependencies=["returns_raw"],
+)
+def returns_residual(df: pd.DataFrame, tf: Timeframe) -> pd.Series:
+    raw_col = f"returns_raw_{tf.value}"
+    if raw_col not in df.columns or df[raw_col].dropna().empty:
+        return pd.Series(np.nan, index=df.index)
 
-    rets_matrix = df.pivot(
+    # Pivot to (T_samples, N_assets) matrix
+    pivot_df = df.pivot(
         index="timestamp", columns="internal_id", values=raw_col
-    ).fillna(0.0)
+    )
 
-    if (
-        rets_matrix.shape[0] < MIN_SAMPLES
-        or rets_matrix.shape[1] < MIN_SAMPLES
-    ):
-        demeaned = df[raw_col].fillna(0.0) - df.groupby("timestamp")[
-            raw_col
-        ].transform("mean").fillna(0.0)
-        return cast(pd.Series, demeaned)
+    # Handle NaNs: first row of returns is always NaN. Fill with 0 for PCA.
+    clean_pivot = pivot_df.fillna(0)
 
-    rets_residual_matrix = RiskModel.get_residual_returns(rets_matrix.values)
+    min_assets, min_obs = 2, 2
+    if clean_pivot.shape[1] < min_assets or clean_pivot.shape[0] < min_obs:
+        return pd.Series(np.nan, index=df.index)
 
+    # Calculate residuals for the whole matrix
+    res_matrix = RiskModel.get_residual_returns(
+        clean_pivot.values, n_factors=min(3, clean_pivot.shape[1] - 1)
+    )
     res_df = pd.DataFrame(
-        rets_residual_matrix,
-        index=rets_matrix.index,
-        columns=rets_matrix.columns,
-    )
-    res_long = res_df.stack().reset_index()
-    res_long.columns = ["timestamp", "internal_id", "residual"]
-    res_long["internal_id"] = res_long["internal_id"].astype(
-        df["internal_id"].dtype
+        res_matrix, index=clean_pivot.index, columns=clean_pivot.columns
     )
 
-    merged = df.merge(res_long, on=["timestamp", "internal_id"], how="left")
-    result = merged["residual"].fillna(0.0)
-    result.index = df.index
-    return cast(pd.Series, result)
+    # Map back to original dataframe index
+    lookup = res_df.stack().reset_index(name="res")
+    merged = df.merge(lookup, on=["timestamp", "internal_id"], how="left")
+    return merged["res"]
 
 
 @multi_tf_feature(
-    "residual_mom_10", TIMEFRAMES, dependencies=["returns_residual"]
+    name="residual_vol_20",
+    timeframes=[Timeframe.MIN_30],
+    dependencies=["returns_residual"],
 )
-def residual_mom_10(df: pd.DataFrame, tf: str) -> pd.Series:
-    """
-    10-period cumulative idiosyncratic return.
-    """
-    res_col = f"returns_residual_{tf}"
-    return cast(
-        pd.Series,
-        df.groupby("internal_id")[res_col].transform(
-            lambda x: x.rolling(10).sum()
-        ),
+def residual_vol_20(df: pd.DataFrame, tf: Timeframe) -> pd.Series:
+    res_col = f"returns_residual_{tf.value}"
+    return (
+        df.groupby("internal_id")[res_col]
+        .rolling(window=20)
+        .std()
+        .reset_index(level=0, drop=True)
     )
 
 
 @multi_tf_feature(
-    "residual_vol_20", TIMEFRAMES, dependencies=["returns_residual"]
+    name="residual_mom_10",
+    timeframes=[Timeframe.MIN_30],
+    dependencies=["returns_residual"],
 )
-def residual_vol_20(df: pd.DataFrame, tf: str) -> pd.Series:
-    """
-    Rolling volatility of idiosyncratic returns.
-    """
-    res_col = f"returns_residual_{tf}"
-    return cast(
-        pd.Series,
-        df.groupby("internal_id")[res_col].transform(
-            lambda x: x.rolling(20).std()
-        ),
+def residual_mom_10(df: pd.DataFrame, tf: Timeframe) -> pd.Series:
+    res_col = f"returns_residual_{tf.value}"
+    return (
+        df.groupby("internal_id")[res_col]
+        .rolling(window=10)
+        .sum()
+        .reset_index(level=0, drop=True)
+    )
+
+
+@feature(name="sma_20_30min")
+def sma_20_30min(df: pd.DataFrame) -> pd.Series:
+    return (
+        df.groupby("internal_id")["close_30min"]
+        .rolling(window=20)
+        .mean()
+        .reset_index(level=0, drop=True)
     )
