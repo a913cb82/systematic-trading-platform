@@ -4,7 +4,12 @@ from typing import Dict
 
 import pandas as pd
 
-from src.core.alpha_engine import AlphaEngine, AlphaModel, feature
+from src.core.alpha_engine import (
+    AlphaEngine,
+    AlphaModel,
+    ModelRunConfig,
+    feature,
+)
 from src.core.data_platform import Bar, DataPlatform
 
 
@@ -60,8 +65,6 @@ class TestFeatureDependencies(unittest.TestCase):
                     )
                 ]
             )
-
-        from src.core.alpha_engine import ModelRunConfig
 
         forecasts = AlphaEngine.run_model(
             self.data,

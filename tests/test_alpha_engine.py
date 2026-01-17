@@ -4,7 +4,14 @@ from typing import Dict
 
 import pandas as pd
 
-from src.core.alpha_engine import FEATURES, AlphaEngine, AlphaModel
+import src.alpha_library.features  # noqa: F401
+from src.core.alpha_engine import (
+    FEATURES,
+    AlphaEngine,
+    AlphaModel,
+    ModelRunConfig,
+    SignalProcessor,
+)
 from src.core.data_platform import Bar, DataPlatform
 
 
@@ -20,8 +27,6 @@ class TestAlphaEngine(unittest.TestCase):
         self.data.add_bars(bars)
 
     def test_feature_registry(self) -> None:
-        import src.alpha_library.features  # noqa: F401
-
         self.assertIn("returns_raw_30min", FEATURES)
         self.assertIn("returns_residual_30min", FEATURES)
         self.assertIn("residual_mom_10_30min", FEATURES)
@@ -56,8 +61,6 @@ class TestAlphaEngine(unittest.TestCase):
             ]
         )
 
-        from src.core.alpha_engine import ModelRunConfig
-
         forecasts = AlphaEngine.run_model(
             self.data,
             model,
@@ -74,8 +77,6 @@ class TestAlphaEngine(unittest.TestCase):
             AlphaModel()  # type: ignore[abstract]
 
     def test_signal_processor(self) -> None:
-        from src.core.alpha_engine import SignalProcessor
-
         # Test Z-Score
         signals = {1: 10.0, 2: 20.0, 3: 30.0}
         z = SignalProcessor.zscore(signals)

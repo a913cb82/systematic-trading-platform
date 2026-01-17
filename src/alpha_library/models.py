@@ -1,11 +1,8 @@
-from typing import TYPE_CHECKING, Dict, Optional
+from typing import Dict
 
 import pandas as pd
 
 from src.core.alpha_engine import AlphaModel
-
-if TYPE_CHECKING:
-    from src.core.data_platform import DataPlatform
 
 
 class MomentumModel(AlphaModel):
@@ -19,9 +16,7 @@ class MomentumModel(AlphaModel):
         super().__init__()
         self.feature_names = ["residual_mom_10_30min"]
 
-    def compute_signals(
-        self, latest: pd.DataFrame, data: Optional["DataPlatform"] = None
-    ) -> Dict[int, float]:
+    def compute_signals(self, latest: pd.DataFrame) -> Dict[int, float]:
         return {
             int(idx): float(row["residual_mom_10_30min"])
             for idx, row in latest.iterrows()
@@ -43,9 +38,7 @@ class ReversionModel(AlphaModel):
             "residual_vol_20_30min",
         ]
 
-    def compute_signals(
-        self, latest: pd.DataFrame, data: Optional["DataPlatform"] = None
-    ) -> Dict[int, float]:
+    def compute_signals(self, latest: pd.DataFrame) -> Dict[int, float]:
         signals = {}
         for idx, row in latest.iterrows():
             res = float(row["returns_residual_30min"])

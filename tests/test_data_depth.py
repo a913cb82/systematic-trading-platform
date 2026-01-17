@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 
 import numpy as np
 
+import src.alpha_library.features  # noqa: F401
 from src.core.alpha_engine import FEATURES
 from src.core.data_platform import (
     Bar,
@@ -171,8 +172,6 @@ class TestDataPlatformDepth(unittest.TestCase):
 
     def test_residual_calculation_robustness(self) -> None:
         """Tests residual returns via feature calculation."""
-        import src.alpha_library.features  # noqa: F401
-
         # Use enough observations to ensure PCA doesn't explain 100% variance.
         n_obs = 10
         iids = [self.data.get_internal_id(f"T{i}") for i in range(5)]

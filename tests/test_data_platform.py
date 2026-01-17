@@ -4,7 +4,12 @@ from typing import List
 
 import pandas as pd
 
-from src.core.data_platform import Bar, CorporateAction, DataPlatform
+from src.core.data_platform import (
+    Bar,
+    CorporateAction,
+    DataPlatform,
+    QueryConfig,
+)
 from src.gateways.base import DataProvider
 
 
@@ -47,8 +52,6 @@ class TestDataPlatformFull(unittest.TestCase):
             ]
         )
 
-        from src.core.data_platform import QueryConfig
-
         # Query at T+2: should see 100
         df = self.data.get_bars(
             [1000],
@@ -74,8 +77,6 @@ class TestDataPlatformFull(unittest.TestCase):
         self.assertEqual(df.iloc[0]["close_1D"], 102)
 
     def test_corporate_actions_adjustment(self) -> None:
-        from src.core.data_platform import QueryConfig
-
         ts1, ts2 = self.ts, self.ts + timedelta(days=1)
         self.data.add_bars(
             [

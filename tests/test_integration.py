@@ -5,7 +5,7 @@ from typing import Dict, List
 import numpy as np
 import pandas as pd
 
-from src.core.alpha_engine import AlphaModel
+from src.core.alpha_engine import AlphaEngine, AlphaModel, ModelRunConfig
 from src.core.data_platform import DataPlatform
 from src.core.execution_handler import ExecutionHandler
 from src.core.portfolio_manager import PortfolioManager
@@ -79,7 +79,6 @@ class TestFullSystemIntegration(unittest.TestCase):
 
         model = SimpleAlpha()
         ts = datetime(2025, 1, 10)
-        from src.core.alpha_engine import AlphaEngine, ModelRunConfig
 
         forecasts = AlphaEngine.run_model(
             data, model, iids, ModelRunConfig(timestamp=ts, timeframe="1D")

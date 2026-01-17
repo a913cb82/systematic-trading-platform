@@ -1,4 +1,5 @@
 import unittest
+import warnings
 
 import numpy as np
 
@@ -37,8 +38,6 @@ class TestPortfolioRobustness(unittest.TestCase):
 
     def test_infeasible_constraints_graceful_fail(self) -> None:
         """Tests behavior when constraints are impossible."""
-        import warnings
-
         # Our current constraints are quite loose.
         # But if the solver fails, it should return current_weights.
         self.pm.current_weights = {1000: 0.1, 1001: 0.2}
