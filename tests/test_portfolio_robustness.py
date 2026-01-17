@@ -37,13 +37,17 @@ class TestPortfolioRobustness(unittest.TestCase):
 
     def test_infeasible_constraints_graceful_fail(self) -> None:
         """Tests behavior when constraints are impossible."""
+        import warnings
+
         # Our current constraints are quite loose.
         # But if the solver fails, it should return current_weights.
         self.pm.current_weights = {1000: 0.1, 1001: 0.2}
 
         # Passing garbage data to force a failure
         invalid_returns = np.array([[np.nan, np.nan]])
-        weights = self.pm.optimize({1000: 0.1, 1001: 0.2}, invalid_returns)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            weights = self.pm.optimize({1000: 0.1, 1001: 0.2}, invalid_returns)
 
         self.assertEqual(weights, {1000: 0.1, 1001: 0.2})
 

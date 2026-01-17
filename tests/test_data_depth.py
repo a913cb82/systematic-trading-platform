@@ -178,24 +178,24 @@ class TestDataPlatformDepth(unittest.TestCase):
         iids = [self.data.get_internal_id(f"T{i}") for i in range(5)]
 
         tf = "30min"
+        all_bars = []
         for iid in iids:
             for i in range(n_obs):
                 ts = self.ts + timedelta(days=i)
                 price = 100 + np.random.randn()
-                self.data.add_bars(
-                    [
-                        Bar(
-                            iid,
-                            ts,
-                            price,
-                            price + 1,
-                            price - 1,
-                            price,
-                            1000,
-                            timeframe=tf,
-                        )
-                    ]
+                all_bars.append(
+                    Bar(
+                        iid,
+                        ts,
+                        price,
+                        price + 1,
+                        price - 1,
+                        price,
+                        1000,
+                        timeframe=tf,
+                    )
                 )
+        self.data.add_bars(all_bars)
 
         # We query with 30min timeframe to match what the features expect
         df = self.data.get_bars(

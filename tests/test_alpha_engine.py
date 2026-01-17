@@ -12,12 +12,12 @@ class TestAlphaEngine(unittest.TestCase):
     def setUp(self) -> None:
         self.data = DataPlatform(clear=True)
         self.iid = self.data.get_internal_id("AAPL")
+        bars = []
         for i in range(15):
             ts = datetime(2025, 1, 1) + timedelta(days=i)
             # Default timeframe is 1D
-            self.data.add_bars(
-                [Bar(self.iid, ts, 100, 101, 99, 100 + i, 1000)]
-            )
+            bars.append(Bar(self.iid, ts, 100, 101, 99, 100 + i, 1000))
+        self.data.add_bars(bars)
 
     def test_feature_registry(self) -> None:
         import src.alpha_library.features  # noqa: F401

@@ -19,8 +19,17 @@ class RiskModel:
         npt.NDArray[np.float64],
         npt.NDArray[np.float64],
     ]:
+        # Handle zero variance columns to avoid division by zero warnings
+        std = np.std(returns, axis=0)
+        clean_returns = returns.copy()
+        if np.any(std == 0):
+            # Add tiny noise to constant columns to allow scaling
+            clean_returns[:, std == 0] += np.random.normal(
+                0, 1e-10, clean_returns[:, std == 0].shape
+            )
+
         scaler = StandardScaler()
-        z = scaler.fit_transform(returns)
+        z = scaler.fit_transform(clean_returns)
 
         # n_components must be <= min(n_samples, n_features)
         k = min(n_factors, z.shape[0], z.shape[1])

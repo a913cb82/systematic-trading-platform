@@ -21,6 +21,7 @@ class TestDataPlatformFull(unittest.TestCase):
 
     def test_bitemporal_logic(self) -> None:
         # Bar at T, known at T+1
+        # Correction at T, known at T+5
         self.data.add_bars(
             [
                 Bar(
@@ -32,12 +33,7 @@ class TestDataPlatformFull(unittest.TestCase):
                     100,
                     1000,
                     timestamp_knowledge=self.ts + timedelta(minutes=1),
-                )
-            ]
-        )
-        # Correction at T, known at T+5
-        self.data.add_bars(
-            [
+                ),
                 Bar(
                     1000,
                     self.ts,
@@ -47,7 +43,7 @@ class TestDataPlatformFull(unittest.TestCase):
                     102,
                     1000,
                     timestamp_knowledge=self.ts + timedelta(minutes=5),
-                )
+                ),
             ]
         )
 

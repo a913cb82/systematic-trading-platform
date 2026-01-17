@@ -99,13 +99,17 @@ class DataPlatform:
                     if s in ["bars", "events"]
                     else df,
                 )
-        self.sec_df = self.lib.read("sec_df").data.assign(
-            extra=lambda x: x.extra.apply(
-                lambda e: json.loads(e) if isinstance(e, str) else e
+        self.sec_df = (
+            self.lib.read("sec_df")
+            .data.copy()
+            .assign(
+                extra=lambda x: x.extra.apply(
+                    lambda e: json.loads(e) if isinstance(e, str) else e
+                )
             )
         )
         self.ca_df, self._id_counter = (
-            self.lib.read("ca_df").data,
+            self.lib.read("ca_df").data.copy(),
             int(
                 self.sec_df.internal_id.max() + 1
                 if not self.sec_df.empty
@@ -130,22 +134,20 @@ class DataPlatform:
     ) -> int:
         s, e = start or datetime(1900, 1, 1), end or datetime(2200, 1, 1)
         res = self.sec_df[
-            (self.sec_df.ticker == ticker)
-            & (self.sec_df.start <= e)
-            & (self.sec_df.end >= s)
+            (self.sec_df["ticker"] == ticker)
+            & (self.sec_df["start"] <= e)
+            & (self.sec_df["end"] >= s)
         ]
         if internal_id is None and not res.empty:
             return int(res.iloc[0].internal_id)
         iid = internal_id or self._id_counter
         if internal_id is None:
             self._id_counter += 1
-        self.sec_df = pd.concat(
-            [
-                self.sec_df,
-                pd.DataFrame([asdict(Security(iid, ticker, s, e, kwargs))]),
-            ],
-            ignore_index=True,
-        )
+        new_sec = pd.DataFrame([asdict(Security(iid, ticker, s, e, kwargs))])
+        if self.sec_df.empty:
+            self.sec_df = new_sec
+        else:
+            self.sec_df = pd.concat([self.sec_df, new_sec], ignore_index=True)
         self._persist_metadata()
         return iid
 
@@ -154,9 +156,9 @@ class DataPlatform:
     ) -> int:
         d = date or datetime.now()
         res = self.sec_df[
-            (self.sec_df.ticker == ticker)
-            & (self.sec_df.start <= d)
-            & (self.sec_df.end >= d)
+            (self.sec_df["ticker"] == ticker)
+            & (self.sec_df["start"] <= d)
+            & (self.sec_df["end"] >= d)
         ]
         return (
             int(res.iloc[0].internal_id)
@@ -199,9 +201,13 @@ class DataPlatform:
         )
 
     def _update_timeseries(self, sym: str, df: pd.DataFrame) -> None:
-        self.lib.write(
-            sym, pd.concat([self.lib.read(sym).data, df]).sort_index()
-        )
+        if df.empty:
+            return
+        existing = self.lib.read(sym).data
+        updated = (
+            df if existing.empty else pd.concat([existing, df])
+        ).sort_index()
+        self.lib.write(sym, updated)
 
     def add_events(self, events: List[Event]) -> None:
         if events:
@@ -234,7 +240,7 @@ class DataPlatform:
             q = q[q.timestamp <= end]
         if types:
             q = q[q.event_type.isin(types)]
-        res = self.lib.read("events", query_builder=q).data
+        res = self.lib.read("events", query_builder=q).data.copy()
         if res.empty:
             return []
         return [
@@ -264,9 +270,11 @@ class DataPlatform:
             )
 
     def add_ca(self, ca: CorporateAction) -> None:
-        self.ca_df = pd.concat(
-            [self.ca_df, pd.DataFrame([asdict(ca)])]
-        ).drop_duplicates()
+        new_row = pd.DataFrame([asdict(ca)])
+        if self.ca_df.empty:
+            self.ca_df = new_row
+        else:
+            self.ca_df = pd.concat([self.ca_df, new_row]).drop_duplicates()
         self._persist_metadata()
 
     def sync_data(
@@ -294,19 +302,16 @@ class DataPlatform:
             )
         cas = self.provider.fetch_corporate_actions(tickers, start, end)
         if not cas.empty:
-            self.ca_df = pd.concat(
-                [
-                    self.ca_df,
-                    cas.assign(
-                        internal_id=cas.apply(
-                            lambda r: self.get_internal_id(
-                                r.ticker, r.ex_date
-                            ),
-                            1,
-                        )
-                    ).drop(columns="ticker"),
-                ]
-            ).drop_duplicates()
+            new_cas = cas.assign(
+                internal_id=cas.apply(
+                    lambda r: self.get_internal_id(r.ticker, r.ex_date),
+                    1,
+                )
+            ).drop(columns="ticker")
+            if self.ca_df.empty:
+                self.ca_df = new_cas
+            else:
+                self.ca_df = pd.concat([self.ca_df, new_cas]).drop_duplicates()
             self._persist_metadata()
         evs = self.provider.fetch_events(tickers, start, end)
         if not evs.empty:
@@ -332,7 +337,7 @@ class DataPlatform:
             & (q.timestamp >= cfg.start)
             & (q.timestamp <= cfg.end)
         ]
-        df = self.lib.read("bars", query_builder=q).data.reset_index()
+        df = self.lib.read("bars", query_builder=q).data.copy().reset_index()
         if df.empty:
             return df
         df = (
