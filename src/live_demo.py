@@ -2,6 +2,8 @@ import random
 from datetime import datetime, timedelta
 from typing import Dict, List
 
+import numpy as np
+
 from src.alpha_library.models import MomentumModel
 from src.backtesting.demo import MarketDataMock
 from src.core.alpha_engine import (
@@ -10,7 +12,7 @@ from src.core.alpha_engine import (
     SignalCombiner,
     SignalProcessor,
 )
-from src.core.data_platform import Bar, DataPlatform
+from src.core.data_platform import Bar, DataPlatform, QueryConfig
 from src.core.execution_handler import ExecutionHandler
 from src.core.portfolio_manager import PortfolioManager
 from src.gateways.base import ExecutionBackend
@@ -89,7 +91,31 @@ def run_live_demo() -> None:
     # 2. Live Simulation Loop
     current_time = datetime(2026, 1, 1, 9, 30)
     ticker_to_iid = {t: data.get_internal_id(t) for t in tickers}
+    iids = list(ticker_to_iid.values())
     models = [MomentumModel()]
+
+    # A. Daily Risk Model & Factor Return Estimation (Once per day)
+    hist_bars = data.get_bars(
+        iids,
+        QueryConfig(
+            start=current_time - timedelta(days=5),
+            end=current_time - timedelta(minutes=1),
+            timeframe="30min",
+        ),
+    )
+    expected_factor_returns = None
+    if not hist_bars.empty:
+        pivot_rets = (
+            hist_bars.pivot(
+                index="timestamp", columns="internal_id", values="close_30min"
+            )
+            .pct_change()
+            .dropna()
+        )
+        if not pivot_rets.empty:
+            pm.update_risk_model(pivot_rets.values)
+            hist_f_rets = pm.get_factor_returns(pivot_rets.values)
+            expected_factor_returns = np.mean(hist_f_rets, axis=0)
 
     print(f"Trading started at {current_time}...")
 
@@ -109,10 +135,8 @@ def run_live_demo() -> None:
             print(
                 f"\n[ORCHESTRATOR] Step {i + 1} | Rebalancing at {step_time}"
             )
-            iids = list(ticker_to_iid.values())
 
-            # A. Generate Signals
-            # run_model correctly queries the 30min bars from DataPlatform
+            # B. Generate Signals
             signals = [
                 AlphaEngine.run_model(
                     data, m, iids, ModelRunConfig(step_time, "30min")
@@ -123,10 +147,10 @@ def run_live_demo() -> None:
                 [SignalProcessor.zscore(s) for s in signals]
             )
 
-            # B. Optimization
-            pm.optimize(combined)
+            # C. Optimization using cached Daily Risk Model and Factor Drift
+            pm.optimize(combined, factor_returns=expected_factor_returns)
 
-            # C. Goal Position Calculation & Rebalance
+            # D. Goal Position Calculation & Rebalance
             prices = mock_alpaca.get_prices(tickers)
             reverse_ism = data.reverse_ism
             goal_positions = {

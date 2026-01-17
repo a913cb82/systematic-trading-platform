@@ -23,6 +23,7 @@ class PortfolioManager:
         self.current_weights: Dict[int, float] = {}
         self.sigma: Optional[npt.NDArray[np.float64]] = None
         self.loadings: Optional[npt.NDArray[np.float64]] = None
+        self.expected_factor_returns: Optional[npt.NDArray[np.float64]] = None
 
         # Soft Constraint Scalars (Lagrange Multipliers)
         self.lambda_net = 100.0  # Net exposure (neutrality)
@@ -53,6 +54,12 @@ class PortfolioManager:
             returns_history
         )
 
+    def get_factor_returns(
+        self, returns_history: npt.NDArray[np.float64]
+    ) -> npt.NDArray[np.float64]:
+        """Calculates realized factor returns for the given history."""
+        return RiskModel.get_factor_returns(returns_history)
+
     def check_safety(self, equity: float) -> bool:
         if self.killed:
             return False
@@ -75,9 +82,11 @@ class PortfolioManager:
         self,
         forecasts: Dict[int, float],
         returns_history: Optional[npt.NDArray[np.float64]] = None,
+        factor_returns: Optional[npt.NDArray[np.float64]] = None,
     ) -> Dict[int, float]:
         """
         Solves QP: Maximize Utility using cached PCA Risk Model.
+        Reconstructs total expected return: mu = beta * E[f] + E[epsilon]
         """
         try:
             iids = sorted(forecasts.keys())
@@ -95,16 +104,23 @@ class PortfolioManager:
             if sigma is None:
                 return self.current_weights
 
-            mu = np.array([forecasts[i] for i in iids])
+            # 2. Total Expected Return Reconstruction
+            epsilon = np.array([forecasts[i] for i in iids])
+            mu = epsilon.copy()
+            if factor_returns is not None and self.loadings is not None:
+                # self.loadings is (N_assets, K_factors)
+                # factor_returns is (K_factors,)
+                mu += self.loadings @ factor_returns
+
             w = cp.Variable(n)
             prev_w = np.array([self.current_weights.get(i, 0.0) for i in iids])
 
-            # 2. Objective Components
+            # 3. Objective Components
             risk = cp.quad_form(w, cp.psd_wrap(sigma))
             tc = self.tc_penalty * cp.norm(w - prev_w, 1)
             impact = 0.005 * cp.sum(cp.power(cp.abs(w - prev_w), 1.5))
 
-            # 3. Soft Constraints
+            # 4. Soft Constraints
             net_pen = self.lambda_net * cp.square(cp.sum(w))
             gross_pen = self.lambda_gross * cp.square(
                 cp.pos(cp.norm(w, 1) - self.leverage_limit)

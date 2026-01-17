@@ -58,7 +58,7 @@ class EarningsModel(AlphaModel):
     def compute_signals(self, latest: pd.DataFrame) -> Dict[int, float]:
         signals = {int(iid): 0.0 for iid in latest.index}
 
-        now = AlphaModel._context_as_of
+        now = self.context_as_of
 
         if now is None:
             return signals

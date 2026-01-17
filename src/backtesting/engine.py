@@ -2,6 +2,8 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, TypedDict
 
+import numpy as np
+import numpy.typing as npt
 import pandas as pd
 
 from src.backtesting.analytics import PerformanceAnalyzer
@@ -27,6 +29,7 @@ class BacktestConfig:
     slippage_bps: float = 5.0
     market_impact_coef: float = 0.1  # bps per % of capital traded
     report_freq: str = "D"
+    factor_returns: Optional[npt.NDArray[np.float64]] = None
 
 
 class IntervalResult(TypedDict):
@@ -155,6 +158,10 @@ class BacktestEngine:
             )
             self.pm.update_risk_model(pivot_rets.values)
 
+            # Estimate expected factor returns (E[f]) from history
+            hist_factor_rets = self.pm.get_factor_returns(pivot_rets.values)
+            expected_factor_returns = np.mean(hist_factor_rets, axis=0)
+
             for ts in [day + timedelta(hours=10), day + timedelta(hours=15)]:
                 if not self.pm.check_safety(
                     self.equity_curve[-1] / self.capital
@@ -179,7 +186,13 @@ class BacktestEngine:
                 )
 
                 prev_weights = self.pm.current_weights.copy()
-                weights_opt = self.pm.optimize(combined)
+                # Use expected_factor_returns if config doesn't override
+                f_rets = (
+                    config.factor_returns
+                    if config.factor_returns is not None
+                    else expected_factor_returns
+                )
+                weights_opt = self.pm.optimize(combined, factor_returns=f_rets)
 
                 total_tcost = self._calculate_tcosts(
                     weights_opt, prev_weights, config

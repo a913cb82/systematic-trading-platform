@@ -71,3 +71,14 @@ class RiskModel:
         z_residual = z - z_explained
 
         return cast(npt.NDArray[np.float64], z_residual * scaler.scale_)
+
+    @staticmethod
+    def get_factor_returns(
+        returns: npt.NDArray[np.float64], n_factors: int = 3
+    ) -> npt.NDArray[np.float64]:
+        """
+        Calculates the realized returns for each PCA factor.
+        Returns: Factor Returns matrix (T_samples, K_factors)
+        """
+        pca, _, _, z_pca = RiskModel._fit_pca(returns, n_factors)
+        return cast(npt.NDArray[np.float64], z_pca)

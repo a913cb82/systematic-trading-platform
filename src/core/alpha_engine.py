@@ -1,7 +1,9 @@
 from abc import ABC, abstractmethod
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, Generator, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -11,6 +13,28 @@ from .data_platform import DataPlatform, Event, QueryConfig
 # Global Feature Registry
 FEATURES: Dict[str, Callable[[pd.DataFrame], pd.Series]] = {}
 FEATURE_DEPS: Dict[str, List[str]] = {}
+
+# Thread-safe context variables
+_context_data: ContextVar[Optional[DataPlatform]] = ContextVar(
+    "context_data", default=None
+)
+_context_as_of: ContextVar[Optional[datetime]] = ContextVar(
+    "context_as_of", default=None
+)
+
+
+@contextmanager
+def alpha_context(
+    data: DataPlatform, timestamp: datetime
+) -> Generator[None, None, None]:
+    """Manages the execution context for AlphaModels."""
+    t1 = _context_data.set(data)
+    t2 = _context_as_of.set(timestamp)
+    try:
+        yield
+    finally:
+        _context_data.reset(t1)
+        _context_as_of.reset(t2)
 
 
 @dataclass
@@ -72,11 +96,12 @@ class SignalProcessor:
 
 
 class AlphaModel(ABC):
-    _context_data: Optional[DataPlatform] = None
-    _context_as_of: Optional[datetime] = None
-
     def __init__(self) -> None:
         self.feature_names: List[str] = []
+
+    @property
+    def context_as_of(self) -> Optional[datetime]:
+        return _context_as_of.get()
 
     @staticmethod
     def get_events(
@@ -89,14 +114,16 @@ class AlphaModel(ABC):
         Static access to events during model execution.
         Automatically respects the 'as_of' time of the current run.
         """
-        if AlphaModel._context_data is None:
+        data = _context_data.get()
+        as_of = _context_as_of.get()
+        if data is None:
             raise RuntimeError("get_events called outside of model execution.")
-        return AlphaModel._context_data.get_events(
+        return data.get_events(
             iids,
             types=types,
             start=start,
             end=end,
-            as_of=AlphaModel._context_as_of,
+            as_of=as_of,
         )
 
     @abstractmethod
@@ -157,13 +184,8 @@ class AlphaEngine:
         )
 
         # 4. Model execution with context
-        AlphaModel._context_data = data
-        AlphaModel._context_as_of = config.timestamp
-        try:
+        with alpha_context(data, config.timestamp):
             return model.compute_signals(latest)
-        finally:
-            AlphaModel._context_data = None
-            AlphaModel._context_as_of = None
 
 
 class SignalCombiner:
