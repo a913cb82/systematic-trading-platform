@@ -8,11 +8,12 @@ The codebase is organized into modular packages within the `src/` directory:
 
 ### 1. `src/core/` (The Engine)
 Primary business logic and mathematical engines.
-- **`data_platform.py`**: Manages bitemporal Security Master, PIT universe reconstruction, and corporate action adjustments.
-- **`alpha_engine.py`**: Base `AlphaModel` framework and `SignalProcessor` for Z-scoring, winsorization, and signal decay.
-- **`portfolio_manager.py`**: QP Optimizer using a **PCA-based Statistical Risk Model** and a **Soft-Constraint Framework** for leverage, turnover, and neutrality.
-- **`execution_handler.py`**: Orchestrates order lifecycle through an event-driven FSM and algorithmic slicing.
-- **`risk_model.py`**: Shared PCA-based factor risk logic.
+- **`types.py`**: Centralized core dataclasses (Bar, Order, Security) and Enums (Timeframe, OrderState).
+- **`data_platform.py`**: Manages bitemporal Security Master, stateless bar aggregation, and ratio/difference corporate action adjustments.
+- **`alpha_engine.py`**: Base `AlphaModel` framework with thread-safe `contextvars` and a centralized feature registry.
+- **`portfolio_manager.py`**: QP Optimizer supporting **Total Expected Return reconstruction** using a statistical risk model.
+- **`execution_handler.py`**: Robust asynchronous manager using a centralized background worker for spaced-out order slicing.
+- **`risk_model.py`**: PCA-based factor risk and realized factor return calculation.
 
 ### 2. `src/backtesting/` (Simulation)
 Formalized research and simulation tools.
@@ -31,7 +32,9 @@ Alpha research artifacts and reusable signals.
 - **`models.py`**: Signal generation models (Momentum, Value).
 
 ## Design Philosophy
+- **Simplicity & Legibility**: Designed as a substantially complete demo that remains easy to read, avoiding the bloat of production systems while maintaining high-fidelity logic.
 - **Data Integrity**: Bitemporal modeling to distinguish between Event Time and Knowledge Time, eliminating look-ahead bias.
+- **Type Safety**: Centralized `types.py` and robust `Timeframe` enums ensure consistency across research and production.
 - **Factor Neutrality**: Focus on isolating idiosyncratic returns (alpha) by forecasting residuals against statistical risk factors.
 - **Consistency**: Shared feature registry and calculation logic ensure backtested performance matches live execution.
 
