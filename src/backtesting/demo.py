@@ -1,7 +1,9 @@
+import os
 from datetime import datetime, timedelta
 from typing import List
 
 import pandas as pd
+from dotenv import load_dotenv
 
 from src.alpha_library.models import (
     EarningsModel,
@@ -12,6 +14,7 @@ from src.backtesting.engine import BacktestConfig, BacktestEngine
 from src.core.data_platform import DataPlatform
 from src.core.portfolio_manager import PortfolioManager
 from src.core.types import Timeframe
+from src.gateways.alpaca import AlpacaDataProvider
 from src.gateways.base import (
     BarProvider,
     CorporateActionProvider,
@@ -75,8 +78,18 @@ class MarketDataMock(BarProvider, CorporateActionProvider, EventProvider):
 
 
 def main() -> None:
+    load_dotenv()
     # 1. Setup Data & PM
-    provider = MarketDataMock()
+    api_key = os.getenv("APCA_API_KEY_ID") or ""
+    api_secret = os.getenv("APCA_API_SECRET_KEY") or ""
+
+    if api_key and api_secret:
+        print("[INFO] Using Alpaca for market data.")
+        provider: BarProvider = AlpacaDataProvider(api_key, api_secret)
+    else:
+        print("[INFO] Alpaca credentials not found. Using Mock data.")
+        provider = MarketDataMock()
+
     # 2. Setup
     data = DataPlatform(
         provider, db_path="./.arctic_backtest_demo", clear=True

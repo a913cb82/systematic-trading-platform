@@ -13,6 +13,7 @@ from alpaca.data.requests import (
     StockLatestQuoteRequest,
 )
 from alpaca.data.timeframe import TimeFrame as AlpacaTimeFrame
+from alpaca.data.timeframe import TimeFrameUnit
 from alpaca.trading.client import TradingClient
 from alpaca.trading.enums import OrderSide, TimeInForce
 from alpaca.trading.requests import MarketOrderRequest
@@ -36,13 +37,15 @@ class AlpacaDataProvider(BarProvider, CorporateActionProvider, EventProvider):
 
     def _map_timeframe(self, timeframe: Timeframe) -> AlpacaTimeFrame:
         mapping = {
-            Timeframe.MINUTE: AlpacaTimeFrame.Minute,
-            Timeframe.DAY: AlpacaTimeFrame.Day,
-            Timeframe.HOUR: AlpacaTimeFrame.Hour,
+            Timeframe.MINUTE: (1, TimeFrameUnit.Minute),
+            Timeframe.MIN_5: (5, TimeFrameUnit.Minute),
+            Timeframe.MIN_15: (15, TimeFrameUnit.Minute),
+            Timeframe.MIN_30: (30, TimeFrameUnit.Minute),
+            Timeframe.HOUR: (1, TimeFrameUnit.Hour),
+            Timeframe.DAY: (1, TimeFrameUnit.Day),
         }
-        if timeframe in mapping:
-            return cast(AlpacaTimeFrame, mapping[timeframe])
-        return cast(AlpacaTimeFrame, AlpacaTimeFrame.Minute)
+        val, unit = mapping.get(timeframe, (1, TimeFrameUnit.Minute))
+        return AlpacaTimeFrame(val, unit)
 
     def fetch_bars(
         self,
