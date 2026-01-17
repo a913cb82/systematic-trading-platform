@@ -1,3 +1,4 @@
+import time
 import unittest
 from datetime import datetime
 from typing import Any, Dict
@@ -5,7 +6,7 @@ from typing import Any, Dict
 import numpy as np
 
 from src.core.data_platform import DataPlatform
-from src.core.execution_handler import ExecutionHandler
+from src.core.execution_handler import ExecutionHandler, OrderState
 from src.core.portfolio_manager import PortfolioManager
 from src.gateways.base import DataProvider, ExecutionBackend
 
@@ -95,7 +96,15 @@ class TestFullSystemIntegration(unittest.TestCase):
             for iid, weight in weights.items()
         }
 
-        exec_h.rebalance(goal_positions)
+        exec_h.rebalance(goal_positions, interval=0)
+
+        # Wait for worker
+        max_wait = 1.0
+        start_time = time.time()
+        while time.time() - start_time < max_wait:
+            if all(o.state == OrderState.FILLED for o in exec_h.orders):
+                break
+            time.sleep(0.01)
 
         # Verify positions changed from zero
         pos = plugin.get_positions()

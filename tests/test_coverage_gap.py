@@ -1,3 +1,4 @@
+import time
 import unittest
 from datetime import datetime
 from typing import Dict, List
@@ -82,7 +83,16 @@ class TestCoverageGap(unittest.TestCase):
     def test_execution_rejection(self) -> None:
         backend = MockExecutionBackend()
         handler = ExecutionHandler(backend)
-        handler.vwap_execute("REJECT", 100, "BUY", slices=1)
+        handler.vwap_execute("REJECT", 100, "BUY", slices=1, interval=0)
+
+        # Wait for worker
+        max_wait = 1.0
+        start_time = time.time()
+        while time.time() - start_time < max_wait:
+            if handler.orders[0].state == OrderState.REJECTED:
+                break
+            time.sleep(0.01)
+
         self.assertEqual(handler.orders[0].state, OrderState.REJECTED)
 
     def test_tca_slippage(self) -> None:
