@@ -22,6 +22,9 @@ class BacktestConfig:
     weights: List[float]
     tickers: Optional[List[str]] = None
     timeframe: str = "30min"
+    slippage_bps: float = 5.0
+    market_impact_coef: float = 0.1  # bps per % of capital traded
+    report_freq: str = "D"
 
 
 class BacktestEngine:
@@ -39,14 +42,63 @@ class BacktestEngine:
         self.pm = pm
         self.capital = initial_capital
         self.equity_curve = [initial_capital]
-        self.daily_returns: List[float] = []
-        self.total_attribution = {"factor": 0.0, "selection": 0.0}
+        self.interval_results: List[Dict] = []
         self.status = "ACTIVE"
 
+    def _calculate_tcosts(
+        self,
+        weights_opt: Dict[int, float],
+        prev_weights: Dict[int, float],
+        config: BacktestConfig,
+    ) -> float:
+        total_tcost = 0.0
+        all_iids = set(prev_weights.keys()) | set(weights_opt.keys())
+        for iid in all_iids:
+            dw = weights_opt.get(iid, 0.0) - prev_weights.get(iid, 0.0)
+            if dw == 0:
+                continue
+            linear_cost = abs(dw) * (config.slippage_bps / 10000.0)
+            impact_cost = (dw**2) * (config.market_impact_coef / 10000.0)
+            total_tcost += linear_cost + impact_cost
+        return total_tcost
+
+    def _simulate_interval_returns(
+        self,
+        iids: List[int],
+        weights_opt: Dict[int, float],
+        ts: datetime,
+        config: BacktestConfig,
+        close_col: str,
+    ) -> float:
+        current_bars = self.data.get_bars(
+            iids, QueryConfig(start=ts, end=ts, timeframe=config.timeframe)
+        )
+        next_ts = ts + timedelta(hours=1)
+        next_bars = self.data.get_bars(
+            iids,
+            QueryConfig(
+                start=next_ts, end=next_ts, timeframe=config.timeframe
+            ),
+        )
+
+        interval_gross_ret = 0.0
+        if not current_bars.empty and not next_bars.empty:
+            p0 = {
+                row["internal_id"]: float(row[close_col])
+                for _, row in current_bars.iterrows()
+            }
+            p1 = {
+                row["internal_id"]: float(row[close_col])
+                for _, row in next_bars.iterrows()
+            }
+            common_iids = set(p0.keys()) & set(p1.keys())
+            for i in common_iids:
+                asset_ret = p1[i] / p0[i] - 1
+                interval_gross_ret += weights_opt.get(i, 0.0) * asset_ret
+        return interval_gross_ret
+
     def run(self, config: BacktestConfig) -> Dict:
-        """
-        Runs the simulation. If tickers is None, uses the dynamic PIT universe.
-        """
+        """Runs the simulation."""
         trading_days = pd.date_range(
             config.start_date, config.end_date, freq="B"
         )
@@ -55,18 +107,14 @@ class BacktestEngine:
             if self.status == "KILLED":
                 break
 
-            # 1. Dynamic Universe Selection
-            if config.tickers is not None:
-                iids = sorted(
-                    [self.data.get_internal_id(t) for t in config.tickers]
-                )
-            else:
-                iids = sorted(self.data.get_universe(day))
-
+            iids = (
+                sorted([self.data.get_internal_id(t) for t in config.tickers])
+                if config.tickers
+                else sorted(self.data.get_universe(day))
+            )
             if not iids:
                 continue
 
-            # 2. Risk Model Update
             hist_df = self.data.get_bars(
                 iids,
                 QueryConfig(
@@ -88,101 +136,72 @@ class BacktestEngine:
             )
             self.pm.update_risk_model(pivot_rets.values)
 
-            # 3. Rebalance Cycles
-            day_pnl = 0.0
-            intervals = [day + timedelta(hours=10), day + timedelta(hours=15)]
-
-            for ts in intervals:
-                # Safety Check (Kill Switch / Rate Limiting)
-                current_equity = self.equity_curve[-1] + day_pnl
-                if not self.pm.check_safety(current_equity / self.capital):
+            for ts in [day + timedelta(hours=10), day + timedelta(hours=15)]:
+                if not self.pm.check_safety(
+                    self.equity_curve[-1] / self.capital
+                ):
                     self.status = "KILLED"
-                    print(f"!!! STOP: Risk Kill-Switch triggered at {ts} !!!")
                     break
 
-                # Alpha Generation
                 from src.core.alpha_engine import AlphaEngine
 
-                signals = []
-                for model in config.alpha_models:
-                    signals.append(
-                        AlphaEngine.run_model(
-                            self.data,
-                            model,
-                            iids,
-                            ModelRunConfig(
-                                timestamp=ts, timeframe=config.timeframe
-                            ),
-                        )
+                signals = [
+                    AlphaEngine.run_model(
+                        self.data,
+                        m,
+                        iids,
+                        ModelRunConfig(
+                            timestamp=ts, timeframe=config.timeframe
+                        ),
                     )
-
+                    for m in config.alpha_models
+                ]
                 combined = SignalCombiner.combine(
                     [SignalProcessor.zscore(s) for s in signals],
                     weights=config.weights,
                 )
 
+                prev_weights = self.pm.current_weights.copy()
                 weights_opt = self.pm.optimize(combined)
 
-                # 4. Simulate Returns
-                current_bars = self.data.get_bars(
-                    iids,
-                    QueryConfig(start=ts, end=ts, timeframe=config.timeframe),
+                total_tcost = self._calculate_tcosts(
+                    weights_opt, prev_weights, config
                 )
-                next_ts = ts + timedelta(hours=1)
-                next_bars = self.data.get_bars(
-                    iids,
-                    QueryConfig(
-                        start=next_ts, end=next_ts, timeframe=config.timeframe
-                    ),
+                gross_ret = self._simulate_interval_returns(
+                    iids, weights_opt, ts, config, close_col
                 )
+                net_ret = gross_ret - total_tcost
 
-                if not current_bars.empty and not next_bars.empty:
-                    p0 = {
-                        row["internal_id"]: float(row[close_col])
-                        for _, row in current_bars.iterrows()
+                self.interval_results.append(
+                    {
+                        "timestamp": ts,
+                        "gross_ret": gross_ret,
+                        "net_ret": net_ret,
+                        "tcost": total_tcost,
                     }
-                    p1 = {
-                        row["internal_id"]: float(row[close_col])
-                        for _, row in next_bars.iterrows()
-                    }
+                )
+                self.equity_curve.append(self.equity_curve[-1] * (1 + net_ret))
 
-                    # Calculate realized returns only for assets in both bars
-                    common_iids = set(p0.keys()) & set(p1.keys())
-                    rets = {i: (p1[i] / p0[i] - 1) for i in common_iids}
+        return self.report(config.report_freq)
 
-                    if self.pm.loadings is not None:
-                        # Attribution uses weights only for assets
-                        # we have returns for
-                        active_weights = {
-                            i: weights_opt.get(i, 0.0) for i in common_iids
-                        }
-                        attr = PerformanceAnalyzer.factor_attribution(
-                            active_weights, rets, self.pm.loadings
-                        )
-                        self.total_attribution["factor"] += (
-                            attr["factor"] * current_equity
-                        )
-                        self.total_attribution["selection"] += (
-                            attr["selection"] * current_equity
-                        )
-                        day_pnl += attr["total"] * current_equity
+    def report(self, freq: str = "D") -> Dict:
+        if not self.interval_results:
+            return {"status": self.status, "message": "No results generated."}
 
-            # Record Daily Stats
-            daily_ret = day_pnl / self.equity_curve[-1]
-            self.daily_returns.append(daily_ret)
-            self.equity_curve.append(self.equity_curve[-1] + day_pnl)
+        results_df = pd.DataFrame(self.interval_results)
+        perf_table = PerformanceAnalyzer.generate_performance_table(
+            results_df, freq=freq
+        )
 
-        return self.report()
-
-    def report(self) -> Dict:
-        ret_series = pd.Series(self.daily_returns)
+        # Full curve stats
         equity_series = pd.Series(self.equity_curve)
+        net_returns = results_df["net_ret"]
 
         return {
             "status": self.status,
             "total_return": self.equity_curve[-1] / self.equity_curve[0] - 1,
-            "sharpe": PerformanceAnalyzer.calculate_sharpe(ret_series),
+            "sharpe": PerformanceAnalyzer.calculate_sharpe(net_returns),
             "drawdown": PerformanceAnalyzer.calculate_drawdown(equity_series),
             "final_equity": self.equity_curve[-1],
-            "attribution": self.total_attribution,
+            "performance_table": perf_table,
         }

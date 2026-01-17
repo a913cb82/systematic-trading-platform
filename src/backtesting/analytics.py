@@ -52,3 +52,57 @@ class PerformanceAnalyzer:
             "factor": float(contribution_from_factors),
             "selection": float(selection_alpha),
         }
+
+    @staticmethod
+    def generate_performance_table(
+        returns_df: pd.DataFrame, freq: str = "D"
+    ) -> pd.DataFrame:
+        """
+        Aggregates returns and calculates metrics per period.
+        Expected columns in returns_df: ['timestamp', 'gross_ret', 'net_ret']
+        freq can be 'D', 'W', 'M', 'Y'
+        """
+        df = returns_df.copy()
+        df["timestamp"] = pd.to_datetime(df["timestamp"])
+        df = df.set_index("timestamp")
+
+        # Define aggregation logic
+        resampled = df.resample(freq)
+
+        def calc_metrics(group: pd.DataFrame) -> pd.Series:
+            if group.empty:
+                return pd.Series(dtype=float)
+
+            # Cumulative returns for the period
+            gross_cum = (1 + group["gross_ret"]).prod() - 1
+            net_cum = (1 + group["net_ret"]).prod() - 1
+
+            # Multiplier for annualization
+            ann_factor = (
+                252
+                if freq == "D"
+                else (52 if freq == "W" else (12 if freq == "M" else 1))
+            )
+
+            g_sharpe = PerformanceAnalyzer.calculate_sharpe(
+                group["gross_ret"], freq_multiplier=ann_factor
+            )
+            n_sharpe = PerformanceAnalyzer.calculate_sharpe(
+                group["net_ret"], freq_multiplier=ann_factor
+            )
+
+            # Max Drawdown for the period
+            equity = (1 + group["net_ret"]).cumprod()
+            mdd = PerformanceAnalyzer.calculate_drawdown(equity)["max_dd"]
+
+            return pd.Series(
+                {
+                    "Return (Net)": f"{net_cum:.2%}",
+                    "Return (Gross)": f"{gross_cum:.2%}",
+                    "Ann. Sharpe (Net)": f"{n_sharpe:.2f}",
+                    "Ann. Sharpe (Gross)": f"{g_sharpe:.2f}",
+                    "Max Drawdown": f"{mdd:.2%}",
+                }
+            )
+
+        return resampled.apply(calc_metrics)

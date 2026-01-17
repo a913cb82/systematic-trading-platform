@@ -89,13 +89,11 @@ def main() -> None:
     print(f"Status: {stats['status']}")
     print(f"Total Return: {stats['total_return']:.2%}")
     print(f"Sharpe Ratio: {stats['sharpe']:.2f}")
-    print(f"Max Drawdown: {stats['drawdown']:.2%}")
+    print(f"Max Drawdown: {stats['drawdown']['max_dd']:.2%}")
     print(f"Final Equity: ${stats['final_equity']:,.2f}")
 
-    print("\n--- Attribution ---")
-    attr = stats["attribution"]
-    print(f"Factor PnL: ${attr['factor']:,.2f}")
-    print(f"Idiosyncratic PnL: ${attr['selection']:,.2f}")
+    print("\n--- Periodic Performance ---")
+    print(stats["performance_table"])
 
 
 if __name__ == "__main__":
