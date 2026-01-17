@@ -20,6 +20,7 @@ dependencies = [
     "python-dotenv",
     "scikit-learn",
     "alpaca-py",
+    "arcticdb",
 ]
 
 [project.optional-dependencies]

@@ -11,7 +11,7 @@ from src.core.data_platform import Bar, DataPlatform
 
 class TestAlphaEngine(unittest.TestCase):
     def setUp(self) -> None:
-        self.data = DataPlatform()
+        self.data = DataPlatform(clear=True)
         self.iid = self.data.get_internal_id("AAPL")
         for i in range(15):
             ts = datetime(2025, 1, 1) + timedelta(days=i)

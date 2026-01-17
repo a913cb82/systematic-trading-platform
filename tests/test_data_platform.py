@@ -10,7 +10,7 @@ from src.gateways.base import DataProvider
 
 class TestDataPlatformFull(unittest.TestCase):
     def setUp(self) -> None:
-        self.data = DataPlatform()
+        self.data = DataPlatform(clear=True)
         self.iid = self.data.get_internal_id("AAPL")
         self.ts = datetime(2025, 1, 1, 9, 30)
 
@@ -127,7 +127,7 @@ class TestDataPlatformFull(unittest.TestCase):
                     }
                 )
 
-        dp = DataPlatform(MockProvider())
+        dp = DataPlatform(MockProvider(), clear=True)
         dp.sync_data(["AAPL"], datetime(2025, 1, 1), datetime(2025, 1, 2))
         self.assertFalse(dp.ca_df.empty)
         self.assertEqual(dp.ca_df.iloc[0]["ratio"], 2.0)

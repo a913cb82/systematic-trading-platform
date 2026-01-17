@@ -10,7 +10,7 @@ from src.core.data_platform import Bar, DataPlatform
 
 class TestFeatureDependencies(unittest.TestCase):
     def setUp(self) -> None:
-        self.data = DataPlatform()
+        self.data = DataPlatform(clear=True)
         self.iid = self.data.get_internal_id("AAPL")
 
     def test_recursive_hydration(self) -> None:

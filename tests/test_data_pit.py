@@ -6,7 +6,7 @@ from src.core.data_platform import DataPlatform
 
 class TestDataPIT(unittest.TestCase):
     def setUp(self) -> None:
-        self.data = DataPlatform()
+        self.data = DataPlatform(clear=True)
 
     def test_ticker_history_ism(self) -> None:
         """Tests that same internal ID can have different tickers over time."""

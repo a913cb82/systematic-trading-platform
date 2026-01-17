@@ -51,7 +51,7 @@ class MockPlugin(DataProvider, ExecutionBackend):
 class TestFullSystemIntegration(unittest.TestCase):
     def test_end_to_end_flow(self) -> None:
         plugin = MockPlugin()
-        data = DataPlatform(provider=plugin)
+        data = DataPlatform(provider=plugin, clear=True)
         pm = PortfolioManager()
         _ = ExecutionHandler(backend=plugin)
 
@@ -88,7 +88,7 @@ class TestFullSystemIntegration(unittest.TestCase):
     def test_full_lifecycle(self) -> None:
         """Simulates multiple days of the fund's lifecycle."""
         plugin = MockPlugin()
-        data = DataPlatform(provider=plugin)
+        data = DataPlatform(provider=plugin, clear=True)
         pm = PortfolioManager(tc_penalty=0.01)
         exec_h = ExecutionHandler(backend=plugin)
 

@@ -22,6 +22,10 @@ __pycache__/
 .DS_Store
 .directory
 
+# Data
+.arctic_db/
+.arctic_test_db/
+
 # Local environment variables
 .env
 .env.local

@@ -8,7 +8,7 @@ from src.core.data_platform import DataPlatform
 
 class TestAlphaSophistication(unittest.TestCase):
     def setUp(self) -> None:
-        self.data = DataPlatform()
+        self.data = DataPlatform(clear=True)
         self.iid = self.data.get_internal_id("AAPL")
 
     def test_signal_processing(self) -> None:
