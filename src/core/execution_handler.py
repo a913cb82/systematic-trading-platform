@@ -1,6 +1,7 @@
 from enum import Enum
-from typing import Dict, List
+from typing import Dict, List, Optional
 
+from src.core.data_platform import Bar, DataPlatform
 from src.gateways.base import ExecutionBackend
 
 
@@ -30,16 +31,30 @@ class Order:
 
 
 class ExecutionHandler:
-    def __init__(self, backend: ExecutionBackend) -> None:
+    """
+    Live Execution Manager.
+    - Manages exchange connectivity and order state.
+    - Pass-through for real-time data ingestion into DataPlatform.
+    """
+
+    def __init__(
+        self,
+        backend: ExecutionBackend,
+        data_platform: Optional[DataPlatform] = None,
+    ) -> None:
         self.backend = backend
+        self.data = data_platform
         self.orders: List[Order] = []
+
+    def on_bar(self, bar: Bar) -> None:
+        """Pass-through ingestion to DataPlatform."""
+        if self.data:
+            self.data.add_bars([bar])
 
     def vwap_execute(
         self, ticker: str, total_qty: float, side: str, slices: int = 5
     ) -> None:
-        """
-        Simple VWAP/TWAP slicing logic (simulated).
-        """
+        """Simple VWAP/TWAP slicing logic."""
         qty_per_slice = total_qty / slices
         order = Order(ticker, total_qty, side)
         order.state = OrderState.SUBMITTED
@@ -53,46 +68,33 @@ class ExecutionHandler:
                 order.state = OrderState.REJECTED
                 break
 
-    def rebalance(
-        self,
-        target_weights: Dict[int, float],
-        reverse_ism: Dict[int, str],
-        capital: float,
-    ) -> None:
-        """
-        Converts target weights to orders based on current positions.
-        """
+    def rebalance(self, goal_positions: Dict[str, float]) -> None:
+        """Executes trades to reach goal positions (share counts)."""
         current_positions = self.backend.get_positions()
-        prices = self.backend.get_prices(list(reverse_ism.values()))
+        trade_tolerance = 0.1
+        all_tickers = set(current_positions.keys()) | set(
+            goal_positions.keys()
+        )
 
-        trade_tolerance = 0.01
-        for iid, weight in target_weights.items():
-            ticker = reverse_ism[iid]
-            price = prices.get(ticker, 100.0)
-            target_qty = (weight * capital) / price
-            current_qty = current_positions.get(ticker, 0.0)
+        for ticker in all_tickers:
+            target = goal_positions.get(ticker, 0.0)
+            current = current_positions.get(ticker, 0.0)
+            diff = target - current
 
-            diff = target_qty - current_qty
             if abs(diff) > trade_tolerance:
-                side = "BUY" if diff > 0 else "SELL"
-                self.vwap_execute(ticker, abs(diff), side)
+                self.vwap_execute(
+                    ticker, abs(diff), "BUY" if diff > 0 else "SELL"
+                )
 
     def execute_direct(self, ticker: str, quantity: float, side: str) -> bool:
         return self.backend.submit_order(ticker, quantity, side)
 
 
 class TCAEngine:
-    """
-    Post-Trade Analysis & Attribution.
-    """
-
     @staticmethod
     def calculate_slippage(
         arrival_price: float, execution_price: float, side: str
     ) -> float:
-        """
-        Calculates slippage in basis points.
-        """
         if arrival_price == 0:
             return 0.0
         sign = 1 if side == "BUY" else -1
@@ -100,10 +102,6 @@ class TCAEngine:
 
 
 class FIXEngine:
-    """
-    Minimal FIX Protocol Connectivity skeleton.
-    """
-
     def __init__(self, target_comp_id: str):
         self.target_comp_id = target_comp_id
         self.connected = False
@@ -113,5 +111,4 @@ class FIXEngine:
         return True
 
     def send_order(self, ticker: str, qty: float, side: str) -> str:
-        # Mock FIX message 35=D
         return f"FIX_ORDER_ID_{ticker}_{qty}"

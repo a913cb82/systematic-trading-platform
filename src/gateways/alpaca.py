@@ -52,6 +52,7 @@ class AlpacaExecutionBackend(ExecutionBackend):
         self, api_key: str, api_secret: str, paper: bool = True
     ) -> None:
         self.client = TradingClient(api_key, api_secret, paper=paper)
+        self.data_client = StockHistoricalDataClient(api_key, api_secret)
 
     def submit_order(self, ticker: str, quantity: float, side: str) -> bool:
         order_side = OrderSide.BUY if side.upper() == "BUY" else OrderSide.SELL
@@ -76,4 +77,17 @@ class AlpacaExecutionBackend(ExecutionBackend):
         }
 
     def get_prices(self, tickers: List[str]) -> Dict[str, float]:
-        return {}
+        if not tickers:
+            return {}
+        from alpaca.common.exceptions import APIError
+        from alpaca.data.requests import StockLatestQuoteRequest
+
+        request_params = StockLatestQuoteRequest(symbol_or_symbols=tickers)
+        try:
+            quotes = self.data_client.get_stock_latest_quote(request_params)
+            return {symbol: float(q.ask_price) for symbol, q in quotes.items()}
+        except APIError:
+            return {}
+        except Exception as e:
+            print(f"Alpaca Price Error: {e}")
+            return {}

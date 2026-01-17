@@ -65,8 +65,10 @@ class DataPlatform:
         provider: Optional[DataProvider] = None,
         db_path: str = "./.arctic_db",
         clear: bool = False,
+        aggregate_to: Optional[List[str]] = None,
     ) -> None:
         self.provider = provider
+        self.aggregate_to = aggregate_to
         self.arctic = _ARCTIC_CACHE.setdefault(
             db_path, Arctic(f"lmdb://{db_path}")
         )
@@ -74,6 +76,7 @@ class DataPlatform:
             self.arctic.delete_library("platform")
         self.lib = self.arctic.get_library("platform", create_if_missing=True)
         self._load_metadata()
+        self._agg_buffer: Dict[tuple[int, str], List[Bar]] = {}
 
     def _load_metadata(self) -> None:
         """Initializes metadata tables."""
@@ -232,10 +235,58 @@ class DataPlatform:
     # --- Data IO ---
 
     def add_bars(self, bars: List[Bar]) -> None:
+        """
+        Add bars to the platform.
+        Automatically forms higher timeframe bars if self.aggregate_to is set.
+        """
+        if not bars:
+            return
+
+        # 1. Persist the bars provided
         self._write_ts(
             "bars",
             pd.DataFrame([asdict(b) for b in bars]).set_index("timestamp"),
         )
+
+        if not self.aggregate_to:
+            return
+
+        # 2. Handle Minute-to-Minute Aggregation
+        for bar in bars:
+            for target_tf in self.aggregate_to:
+                if target_tf == bar.timeframe:
+                    continue
+
+                try:
+                    target_mins = int(target_tf.replace("min", ""))
+                    source_mins = int(bar.timeframe.replace("min", ""))
+                    ratio = target_mins // source_mins
+
+                    key = (bar.internal_id, target_tf)
+                    buf = self._agg_buffer.setdefault(key, [])
+                    buf.append(bar)
+
+                    if len(buf) >= ratio:
+                        agg_bar = Bar(
+                            internal_id=bar.internal_id,
+                            timestamp=buf[0].timestamp,  # Start of period
+                            open=buf[0].open,
+                            high=max(b.high for b in buf),
+                            low=min(b.low for b in buf),
+                            close=buf[-1].close,
+                            volume=sum(b.volume for b in buf),
+                            timeframe=target_tf,
+                            timestamp_knowledge=bar.timestamp_knowledge,
+                        )
+                        self._write_ts(
+                            "bars",
+                            pd.DataFrame([asdict(agg_bar)]).set_index(
+                                "timestamp"
+                            ),
+                        )
+                        buf.clear()
+                except (ValueError, ZeroDivisionError):
+                    continue
 
     def add_events(self, events: List[Event]) -> None:
         df = pd.DataFrame([asdict(e) for e in events])
