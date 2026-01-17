@@ -56,3 +56,12 @@ disallow_untyped_defs = true
 check_untyped_defs = true
 disallow_any_generics = true
 ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    # This warning originates from ArcticDB internal reads (lib.read().data)
+    # when constructing DataFrames from internal LMDB structures.
+    "ignore:Passing a BlockManagerUnconsolidated to DataFrame is deprecated:DeprecationWarning",
+    # This warning originates from alpaca-py importing legacy websockets code.
+    "ignore:websockets.legacy is deprecated:DeprecationWarning",
+]
