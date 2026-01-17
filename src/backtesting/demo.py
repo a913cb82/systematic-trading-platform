@@ -104,15 +104,8 @@ def main() -> None:
     )
 
     # 5. Output Results
-    print("\n--- Backtest Report ---")
-    print(f"Status: {stats['status']}")
-    print(f"Total Return: {stats['total_return']:.2%}")
-    print(f"Sharpe Ratio: {stats['sharpe']:.2f}")
-    if "drawdown" in stats and stats["drawdown"]:
-        print(f"Max Drawdown: {stats['drawdown']['max_dd']:.2%}")
-    print(f"Final Equity: ${stats['final_equity']:,.2f}")
-
-    print("\n--- Periodic Performance ---")
+    print(f"\nBacktest Status: {stats['status']}")
+    print("\n--- Performance Report ---")
     print(stats["performance_table"])
 
 

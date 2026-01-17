@@ -106,4 +106,10 @@ class PerformanceAnalyzer:
                 }
             )
 
-        return resampled.apply(calc_metrics)
+        resampled_metrics = resampled.apply(calc_metrics)
+
+        # Calculate summary row
+        summary_metrics = calc_metrics(df)
+        summary_metrics.name = "Summary"
+
+        return pd.concat([resampled_metrics, summary_metrics.to_frame().T])
