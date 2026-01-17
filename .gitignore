@@ -23,8 +23,7 @@ __pycache__/
 .directory
 
 # Data
-.arctic_db/
-.arctic_test_db/
+.arctic*/
 
 # Local environment variables
 .env
