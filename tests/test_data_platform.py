@@ -134,7 +134,7 @@ class TestDataPlatformFull(unittest.TestCase):
         dp = DataPlatform(MockProvider(), clear=True)
         dp.sync_data(["AAPL"], datetime(2025, 1, 1), datetime(2025, 1, 2))
         self.assertFalse(dp.ca_df.empty)
-        self.assertEqual(dp.ca_df.iloc[0]["ratio"], 2.0)
+        self.assertEqual(dp.ca_df.iloc[0]["value"], 2.0)
 
 
 if __name__ == "__main__":

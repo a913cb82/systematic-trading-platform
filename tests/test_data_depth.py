@@ -148,13 +148,13 @@ class TestDataPlatformDepth(unittest.TestCase):
             [self.iid],
             QueryConfig(start=t1, end=t4, timeframe="1D", adjust=True),
         )
-        # Final price 45. t1 should be 100 / 2 * 0.9 = 45.0
+        # Final price 45. t1 should be 100 / 2 - 0.9 / 2 = 49.55
         self.assertAlmostEqual(
-            df[df["timestamp"] == t1].iloc[0]["close_1D"], 45.0
+            df[df["timestamp"] == t1].iloc[0]["close_1D"], 49.55
         )
-        # t2 should be 50 * 0.9 = 45.0
+        # t2 should be 50 - 0.9 = 49.1
         self.assertAlmostEqual(
-            df[df["timestamp"] == t2].iloc[0]["close_1D"], 45.0
+            df[df["timestamp"] == t2].iloc[0]["close_1D"], 49.1
         )
 
     def test_symbology_history(self) -> None:

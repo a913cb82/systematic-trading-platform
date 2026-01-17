@@ -46,8 +46,8 @@ class Event:
 class CorporateAction:
     internal_id: int
     ex_date: datetime
-    type: str
-    ratio: float
+    type: str  # SPLIT, DIVIDEND
+    value: float
 
 
 @dataclass
@@ -76,7 +76,6 @@ class DataPlatform:
             self.arctic.delete_library("platform")
         self.lib = self.arctic.get_library("platform", create_if_missing=True)
         self._load_metadata()
-        self._agg_buffer: Dict[tuple[int, str], List[Bar]] = {}
 
     def _load_metadata(self) -> None:
         """Initializes metadata tables."""
@@ -91,7 +90,7 @@ class DataPlatform:
                 {
                     "internal_id": "int64",
                     "ex_date": "datetime64[ns]",
-                    "ratio": "float64",
+                    "value": "float64",
                 },
             ),
         }
@@ -237,44 +236,56 @@ class DataPlatform:
     def add_bars(self, bars: List[Bar]) -> None:
         """
         Add bars to the platform.
-        Automatically forms higher timeframe bars if self.aggregate_to is set.
+        Statelessly forms higher timeframe bars if self.aggregate_to is set.
         """
         if not bars:
             return
 
         # 1. Persist the bars provided
-        self._write_ts(
-            "bars",
-            pd.DataFrame([asdict(b) for b in bars]).set_index("timestamp"),
-        )
+        df_new = pd.DataFrame([asdict(b) for b in bars]).set_index("timestamp")
+        self._write_ts("bars", df_new)
 
         if not self.aggregate_to:
             return
 
-        # 2. Handle Minute-to-Minute Aggregation
+        # 2. Aggregation Logic (Stateless)
         for bar in bars:
             for target_tf in self.aggregate_to:
                 if target_tf == bar.timeframe:
                     continue
 
+                # Determine the start of the current aggregation window
+                freq = target_tf.replace("min", "min")
+                window_start = (
+                    pd.Timestamp(bar.timestamp).floor(freq).to_pydatetime()
+                )
+
+                # Query DB for all raw bars in this window
+                query = QueryBuilder()
+                query = query[
+                    (query.internal_id == bar.internal_id)
+                    & (query.timeframe == bar.timeframe)
+                    & (query.timestamp >= window_start)
+                    & (query.timestamp <= bar.timestamp)
+                ]
+
+                window_df = self.lib.read("bars", query_builder=query).data
+
+                # Check if we have enough bars to form the target
                 try:
                     target_mins = int(target_tf.replace("min", ""))
                     source_mins = int(bar.timeframe.replace("min", ""))
-                    ratio = target_mins // source_mins
+                    required_count = target_mins // source_mins
 
-                    key = (bar.internal_id, target_tf)
-                    buf = self._agg_buffer.setdefault(key, [])
-                    buf.append(bar)
-
-                    if len(buf) >= ratio:
+                    if len(window_df) >= required_count:
                         agg_bar = Bar(
                             internal_id=bar.internal_id,
-                            timestamp=buf[0].timestamp,  # Start of period
-                            open=buf[0].open,
-                            high=max(b.high for b in buf),
-                            low=min(b.low for b in buf),
-                            close=buf[-1].close,
-                            volume=sum(b.volume for b in buf),
+                            timestamp=window_start,
+                            open=float(window_df.open.iloc[0]),
+                            high=float(window_df.high.max()),
+                            low=float(window_df.low.min()),
+                            close=float(window_df.close.iloc[-1]),
+                            volume=float(window_df.volume.sum()),
                             timeframe=target_tf,
                             timestamp_knowledge=bar.timestamp_knowledge,
                         )
@@ -284,8 +295,7 @@ class DataPlatform:
                                 "timestamp"
                             ),
                         )
-                        buf.clear()
-                except (ValueError, ZeroDivisionError):
+                except (ValueError, ZeroDivisionError, IndexError):
                     continue
 
     def add_events(self, events: List[Event]) -> None:
@@ -329,6 +339,10 @@ class DataPlatform:
             .reset_index()
         )
 
+        # Cast to float64 to avoid warnings on adjustments (e.g. Difference)
+        cols = ["open", "high", "low", "close"]
+        df[cols] = df[cols].astype("float64")
+
         if cfg.adjust and not self.meta["ca_df"].empty:
             corporate_actions = self.meta["ca_df"]
             corporate_actions = corporate_actions[
@@ -337,14 +351,23 @@ class DataPlatform:
             ].sort_values("ex_date", ascending=False)
 
             for iid in iids:
+                # Track cumulative ratio adjustment to scale difference adj
+                # (e.g., div before 2:1 split should be adjusted by 0.5)
+                adj_factor = 1.0
+
                 for _, r in corporate_actions[
                     corporate_actions.internal_id == iid
                 ].iterrows():
-                    ratio = 1 / r.ratio if r.type == "SPLIT" else r.ratio
-                    df.loc[
-                        (df.internal_id == iid) & (df.timestamp < r.ex_date),
-                        ["open", "high", "low", "close"],
-                    ] *= ratio
+                    mask = (df.internal_id == iid) & (df.timestamp < r.ex_date)
+                    cols = ["open", "high", "low", "close"]
+
+                    if r.type == "SPLIT":
+                        ratio = 1.0 / r.value
+                        df.loc[mask, cols] *= ratio
+                        adj_factor *= ratio
+                    elif r.type == "DIVIDEND":
+                        # Difference adjustment scaled by future ratios
+                        df.loc[mask, cols] -= r.value * adj_factor
 
         return df.rename(
             columns={
@@ -407,12 +430,23 @@ class DataPlatform:
             tickers, start, end
         )
         if not corporate_actions.empty:
+            # Map amount/ratio to 'value' depending on type
+            if "value" not in corporate_actions.columns:
+                # Fallback mapping if provider uses ratio/amount
+                corporate_actions["value"] = corporate_actions.apply(
+                    lambda r: r.get("ratio") or r.get("amount") or 0.0, axis=1
+                )
+
             new_corporate_actions = with_ids(corporate_actions, "ex_date")
+            new_ca_df = new_corporate_actions[
+                ["internal_id", "ex_date", "type", "value"]
+            ].drop_duplicates()
+
             if self.meta["ca_df"].empty:
-                self.meta["ca_df"] = new_corporate_actions.drop_duplicates()
+                self.meta["ca_df"] = new_ca_df
             else:
                 self.meta["ca_df"] = pd.concat(
-                    [self.meta["ca_df"], new_corporate_actions]
+                    [self.meta["ca_df"], new_ca_df]
                 ).drop_duplicates()
             self._save_meta("ca_df")
 
