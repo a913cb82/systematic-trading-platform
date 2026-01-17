@@ -54,4 +54,5 @@ warn_unused_configs = true
 warn_unused_ignores = true
 disallow_untyped_defs = true
 check_untyped_defs = true
+disallow_any_generics = true
 ignore_missing_imports = true

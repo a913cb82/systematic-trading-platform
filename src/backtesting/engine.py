@@ -1,11 +1,13 @@
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, TypedDict
 
 import pandas as pd
 
 from src.backtesting.analytics import PerformanceAnalyzer
 from src.core.alpha_engine import (
+    AlphaEngine,
+    AlphaModel,
     ModelRunConfig,
     SignalCombiner,
     SignalProcessor,
@@ -18,13 +20,30 @@ from src.core.portfolio_manager import PortfolioManager
 class BacktestConfig:
     start_date: datetime
     end_date: datetime
-    alpha_models: List
+    alpha_models: List[AlphaModel]
     weights: List[float]
     tickers: Optional[List[str]] = None
     timeframe: str = "30min"
     slippage_bps: float = 5.0
     market_impact_coef: float = 0.1  # bps per % of capital traded
     report_freq: str = "D"
+
+
+class IntervalResult(TypedDict):
+    timestamp: datetime
+    gross_ret: float
+    net_ret: float
+    tcost: float
+
+
+class BacktestReport(TypedDict):
+    status: str
+    total_return: float
+    sharpe: float
+    drawdown: Dict[str, float]
+    final_equity: float
+    performance_table: pd.DataFrame
+    message: Optional[str]
 
 
 class BacktestEngine:
@@ -42,7 +61,7 @@ class BacktestEngine:
         self.pm = pm
         self.capital = initial_capital
         self.equity_curve = [initial_capital]
-        self.interval_results: List[Dict] = []
+        self.interval_results: List[IntervalResult] = []
         self.status = "ACTIVE"
 
     def _calculate_tcosts(
@@ -97,7 +116,7 @@ class BacktestEngine:
                 interval_gross_ret += weights_opt.get(i, 0.0) * asset_ret
         return interval_gross_ret
 
-    def run(self, config: BacktestConfig) -> Dict:
+    def run(self, config: BacktestConfig) -> BacktestReport:
         """Runs the simulation."""
         trading_days = pd.date_range(
             config.start_date, config.end_date, freq="B"
@@ -143,8 +162,6 @@ class BacktestEngine:
                     self.status = "KILLED"
                     break
 
-                from src.core.alpha_engine import AlphaEngine
-
                 signals = [
                     AlphaEngine.run_model(
                         self.data,
@@ -184,9 +201,17 @@ class BacktestEngine:
 
         return self.report(config.report_freq)
 
-    def report(self, freq: str = "D") -> Dict:
+    def report(self, freq: str = "D") -> BacktestReport:
         if not self.interval_results:
-            return {"status": self.status, "message": "No results generated."}
+            return {
+                "status": self.status,
+                "message": "No results generated.",
+                "total_return": 0.0,
+                "sharpe": 0.0,
+                "drawdown": {"max_dd": 0.0},
+                "final_equity": self.capital,
+                "performance_table": pd.DataFrame(),
+            }
 
         results_df = pd.DataFrame(self.interval_results)
         perf_table = PerformanceAnalyzer.generate_performance_table(
@@ -199,6 +224,7 @@ class BacktestEngine:
 
         return {
             "status": self.status,
+            "message": None,
             "total_return": self.equity_curve[-1] / self.equity_curve[0] - 1,
             "sharpe": PerformanceAnalyzer.calculate_sharpe(net_returns),
             "drawdown": PerformanceAnalyzer.calculate_drawdown(equity_series),

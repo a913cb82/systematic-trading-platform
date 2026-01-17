@@ -88,7 +88,7 @@ class DataPlatform:
                 df = pd.DataFrame(
                     {
                         f.name: pd.Series(
-                            dtype=tm.get(cast(Type, f.type), "O")
+                            dtype=tm.get(cast(Type[Any], f.type), "O")
                         )
                         for f in fields(c)
                     }

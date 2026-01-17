@@ -1,6 +1,7 @@
 from typing import Dict
 
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 
 
@@ -28,7 +29,7 @@ class PerformanceAnalyzer:
     def factor_attribution(
         portfolio_weights: Dict[int, float],
         asset_returns: Dict[int, float],
-        factor_loadings: np.ndarray,  # N x K
+        factor_loadings: npt.NDArray[np.float64],  # N x K
     ) -> Dict[str, float]:
         """
         Decomposes a single-period return using PCA components.

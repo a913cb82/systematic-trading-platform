@@ -1,16 +1,24 @@
-from typing import Any, Tuple, cast
+from typing import TYPE_CHECKING, Tuple, cast
 
 import numpy as np
+import numpy.typing as npt
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
+
+if TYPE_CHECKING:
+    pass
 
 
 class RiskModel:
     @staticmethod
     def _fit_pca(
-        returns: np.ndarray, n_factors: int
-    ) -> Tuple[Any, Any, np.ndarray, np.ndarray]:
-        from sklearn.decomposition import PCA
-        from sklearn.preprocessing import StandardScaler
-
+        returns: npt.NDArray[np.float64], n_factors: int
+    ) -> Tuple[
+        PCA,
+        StandardScaler,
+        npt.NDArray[np.float64],
+        npt.NDArray[np.float64],
+    ]:
         scaler = StandardScaler()
         z = scaler.fit_transform(returns)
 
@@ -22,8 +30,8 @@ class RiskModel:
 
     @staticmethod
     def estimate_pca_covariance(
-        returns: np.ndarray, n_factors: int = 3
-    ) -> Tuple[np.ndarray, np.ndarray]:
+        returns: npt.NDArray[np.float64], n_factors: int = 3
+    ) -> Tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
         """
         Decomposes returns into factor and specific risk using PCA.
         Returns: (Sigma, Loadings)
@@ -39,12 +47,12 @@ class RiskModel:
         std = scaler.scale_
         sigma = sigma_z * np.outer(std, std)
 
-        return cast(np.ndarray, sigma), loadings
+        return cast(npt.NDArray[np.float64], sigma), loadings
 
     @staticmethod
     def get_residual_returns(
-        returns: np.ndarray, n_factors: int = 3
-    ) -> np.ndarray:
+        returns: npt.NDArray[np.float64], n_factors: int = 3
+    ) -> npt.NDArray[np.float64]:
         """
         Removes components explained by top K PCA factors.
         """
@@ -53,4 +61,4 @@ class RiskModel:
         z_explained = pca.inverse_transform(z_pca)
         z_residual = z - z_explained
 
-        return cast(np.ndarray, z_residual * scaler.scale_)
+        return cast(npt.NDArray[np.float64], z_residual * scaler.scale_)

@@ -3,6 +3,7 @@ from typing import Dict, Optional
 
 import cvxpy as cp
 import numpy as np
+import numpy.typing as npt
 
 from src.core.risk_model import RiskModel
 
@@ -20,8 +21,8 @@ class PortfolioManager:
         self.tc_penalty = tc_penalty
         self.leverage_limit = leverage_limit
         self.current_weights: Dict[int, float] = {}
-        self.sigma: Optional[np.ndarray] = None
-        self.loadings: Optional[np.ndarray] = None
+        self.sigma: Optional[npt.NDArray[np.float64]] = None
+        self.loadings: Optional[npt.NDArray[np.float64]] = None
 
         # Soft Constraint Scalars (Lagrange Multipliers)
         self.lambda_net = 100.0  # Net exposure (neutrality)
@@ -41,7 +42,9 @@ class PortfolioManager:
         self.max_msgs = max_msgs
         self.max_dd = max_drawdown
 
-    def update_risk_model(self, returns_history: np.ndarray) -> None:
+    def update_risk_model(
+        self, returns_history: npt.NDArray[np.float64]
+    ) -> None:
         """
         Calculates and caches the PCA-based risk parameters.
         Should be called once at the start of the trading day.
@@ -71,7 +74,7 @@ class PortfolioManager:
     def optimize(
         self,
         forecasts: Dict[int, float],
-        returns_history: Optional[np.ndarray] = None,
+        returns_history: Optional[npt.NDArray[np.float64]] = None,
     ) -> Dict[int, float]:
         """
         Solves QP: Maximize Utility using cached PCA Risk Model.

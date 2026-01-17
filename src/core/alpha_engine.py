@@ -1,12 +1,12 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
 
-from .data_platform import DataPlatform, QueryConfig
+from .data_platform import DataPlatform, Event, QueryConfig
 
 # Global Feature Registry
 FEATURES: Dict[str, Callable[[pd.DataFrame], pd.Series]] = {}
@@ -22,8 +22,12 @@ class ModelRunConfig:
 
 def feature(
     name: str, dependencies: Optional[List[str]] = None
-) -> Callable[[Any], Any]:
-    def decorator(func: Callable[[pd.DataFrame], pd.Series]) -> Callable:
+) -> Callable[
+    [Callable[[pd.DataFrame], pd.Series]], Callable[[pd.DataFrame], pd.Series]
+]:
+    def decorator(
+        func: Callable[[pd.DataFrame], pd.Series],
+    ) -> Callable[[pd.DataFrame], pd.Series]:
         FEATURES[name] = func
         FEATURE_DEPS[name] = dependencies or []
         return func
@@ -33,8 +37,13 @@ def feature(
 
 def multi_tf_feature(
     name: str, timeframes: List[str], dependencies: Optional[List[str]] = None
-) -> Callable[[Callable[[pd.DataFrame, str], pd.Series]], Callable]:
-    def decorator(func: Callable[[pd.DataFrame, str], pd.Series]) -> Callable:
+) -> Callable[
+    [Callable[[pd.DataFrame, str], pd.Series]],
+    Callable[[pd.DataFrame, str], pd.Series],
+]:
+    def decorator(
+        func: Callable[[pd.DataFrame, str], pd.Series],
+    ) -> Callable[[pd.DataFrame, str], pd.Series]:
         for tf in timeframes:
             full_name = f"{name}_{tf}"
             tf_deps = [f"{d}_{tf}" for d in (dependencies or [])]
@@ -75,7 +84,7 @@ class AlphaModel(ABC):
         types: Optional[List[str]] = None,
         start: Optional[datetime] = None,
         end: Optional[datetime] = None,
-    ) -> List[Any]:
+    ) -> List[Event]:
         """
         Static access to events during model execution.
         Automatically respects the 'as_of' time of the current run.
