@@ -5,7 +5,6 @@ This repository contains a modular, data-driven investment platform designed for
 ## Core Documentation
 
 - **Philosophy & Blueprint:** `ARCHITECTURE.md` contains the primary technical specifications, mathematical foundations, and bitemporal data integrity rules.
-- **Operational Status:** `TODO.md` tracks active workstreams, roadmap progress, and current development tasks.
 - **Onboarding:** `README.md` provides a high-level summary of core modules and setup instructions.
 
 ## Technical Framework

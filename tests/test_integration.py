@@ -38,6 +38,13 @@ class MockPlugin(DataProvider, ExecutionBackend):
     ) -> pd.DataFrame:
         return pd.DataFrame(columns=["ticker", "ex_date", "type", "ratio"])
 
+    def fetch_events(
+        self, tickers: List[str], start: datetime, end: datetime
+    ) -> pd.DataFrame:
+        return pd.DataFrame(
+            columns=["ticker", "timestamp", "event_type", "value"]
+        )
+
     def submit_order(self, ticker: str, quantity: float, side: str) -> bool:
         return True
 

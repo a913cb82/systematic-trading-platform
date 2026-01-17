@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional
@@ -5,10 +6,9 @@ from typing import Any, Callable, Dict, List, Optional
 import numpy as np
 import pandas as pd
 
-from .data_platform import DataPlatform
+from .data_platform import DataPlatform, QueryConfig
 
 # Global Feature Registry
-# Registered by exact name (e.g. 'returns_raw_30min')
 FEATURES: Dict[str, Callable[[pd.DataFrame], pd.Series]] = {}
 FEATURE_DEPS: Dict[str, List[str]] = {}
 
@@ -34,17 +34,11 @@ def feature(
 def multi_tf_feature(
     name: str, timeframes: List[str], dependencies: Optional[List[str]] = None
 ) -> Callable[[Callable[[pd.DataFrame, str], pd.Series]], Callable]:
-    """
-    Utility to register a feature for multiple timeframes.
-    Handles naming for both the feature and its dependencies.
-    """
-
     def decorator(func: Callable[[pd.DataFrame, str], pd.Series]) -> Callable:
         for tf in timeframes:
             full_name = f"{name}_{tf}"
             tf_deps = [f"{d}_{tf}" for d in (dependencies or [])]
 
-            # Bind the timeframe to the function
             def make_wrapper(
                 current_tf: str,
             ) -> Callable[[pd.DataFrame], pd.Series]:
@@ -68,12 +62,41 @@ class SignalProcessor:
         return {k: float((v - mu) / std) for k, v in signals.items()}
 
 
-class AlphaModel:
+class AlphaModel(ABC):
+    _context_data: Optional[DataPlatform] = None
+    _context_as_of: Optional[datetime] = None
+
     def __init__(self) -> None:
         self.feature_names: List[str] = []
 
+    @staticmethod
+    def get_events(
+        iids: List[int],
+        types: Optional[List[str]] = None,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
+    ) -> List[Any]:
+        """
+        Static access to events during model execution.
+        Automatically respects the 'as_of' time of the current run.
+        """
+        if AlphaModel._context_data is None:
+            raise RuntimeError("get_events called outside of model execution.")
+        return AlphaModel._context_data.get_events(
+            iids,
+            types=types,
+            start=start,
+            end=end,
+            as_of=AlphaModel._context_as_of,
+        )
+
+    @abstractmethod
     def compute_signals(self, latest: pd.DataFrame) -> Dict[int, float]:
-        raise NotImplementedError
+        """
+        Calculates alpha scores for all securities in the universe.
+        'latest' contains features hydrated for the target timestamp.
+        """
+        pass
 
 
 class AlphaEngine:
@@ -90,11 +113,8 @@ class AlphaEngine:
             if f in seen or f not in FEATURES:
                 continue
 
-            # Recursively hydrate dependencies
             deps = FEATURE_DEPS.get(f, [])
             AlphaEngine._hydrate_features(df, deps, seen)
-
-            # Compute and store
             df[f] = FEATURES[f](df)
             seen.add(f)
 
@@ -106,10 +126,9 @@ class AlphaEngine:
         config: ModelRunConfig,
     ) -> Dict[int, float]:
         # Ensure all features are registered
-        import src.alpha_library.features  # noqa: F401
+        import src.alpha_library.features  # noqa: F401, PLC0415
 
-        from .data_platform import QueryConfig
-
+        # 1. Fetch Bars
         start = config.timestamp - pd.Timedelta(days=config.lookback_days)
         df = data.get_bars(
             internal_ids,
@@ -120,15 +139,22 @@ class AlphaEngine:
         if df.empty:
             return {}
 
-        # 1. Hydrate requested features
+        # 2. Hydrate requested features
         AlphaEngine._hydrate_features(df, model.feature_names)
 
-        # 2. Extract cross-section at target timestamp
+        # 3. Slice for latest timestamp
         latest = df[df["timestamp"] == config.timestamp].set_index(
             "internal_id"
         )
 
-        return model.compute_signals(latest)
+        # 4. Model execution with context
+        AlphaModel._context_data = data
+        AlphaModel._context_as_of = config.timestamp
+        try:
+            return model.compute_signals(latest)
+        finally:
+            AlphaModel._context_data = None
+            AlphaModel._context_as_of = None
 
 
 class SignalCombiner:

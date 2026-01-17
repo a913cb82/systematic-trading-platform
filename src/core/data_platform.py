@@ -219,6 +219,8 @@ class DataPlatform:
         self,
         iids: List[int],
         types: Optional[List[str]] = None,
+        start: Optional[datetime] = None,
+        end: Optional[datetime] = None,
         as_of: Optional[datetime] = None,
     ) -> List[Event]:
         q = QueryBuilder()
@@ -226,8 +228,15 @@ class DataPlatform:
             q.internal_id.isin(iids)
             & (q.timestamp_knowledge <= (as_of or datetime.now()))
         ]
+        if start:
+            q = q[q.timestamp >= start]
+        if end:
+            q = q[q.timestamp <= end]
         if types:
             q = q[q.event_type.isin(types)]
+        res = self.lib.read("events", query_builder=q).data
+        if res.empty:
+            return []
         return [
             Event(
                 **{
@@ -237,9 +246,7 @@ class DataPlatform:
                     else r["value"],
                 }
             )
-            for r in self.lib.read("events", query_builder=q)
-            .data.reset_index()
-            .to_dict("records")
+            for r in res.reset_index().to_dict("records")
         ]
 
     def add_bars(self, bars: List[Bar]) -> None:
@@ -301,6 +308,20 @@ class DataPlatform:
                 ]
             ).drop_duplicates()
             self._persist_metadata()
+        evs = self.provider.fetch_events(tickers, start, end)
+        if not evs.empty:
+            self.add_events(
+                [
+                    Event(
+                        self.get_internal_id(r.ticker, r.timestamp),
+                        r.timestamp,
+                        r.event_type,
+                        r.value,
+                        now,
+                    )
+                    for _, r in evs.iterrows()
+                ]
+            )
 
     def get_bars(self, iids: List[int], cfg: QueryConfig) -> pd.DataFrame:
         q = QueryBuilder()

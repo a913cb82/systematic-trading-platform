@@ -1,7 +1,6 @@
 import unittest
 from datetime import datetime, timedelta
 from typing import Dict
-from unittest.mock import MagicMock
 
 import pandas as pd
 
@@ -70,10 +69,9 @@ class TestAlphaEngine(unittest.TestCase):
         self.assertAlmostEqual(forecasts[self.iid], 0.1)
 
     def test_alpha_model_not_implemented(self) -> None:
-        """Verify base class raises NotImplementedError."""
-        model = AlphaModel()
-        with self.assertRaises(NotImplementedError):
-            model.compute_signals(MagicMock())
+        """Verify base class cannot be instantiated."""
+        with self.assertRaises(TypeError):
+            AlphaModel()  # type: ignore[abstract]
 
     def test_signal_processor(self) -> None:
         from src.core.alpha_engine import SignalProcessor

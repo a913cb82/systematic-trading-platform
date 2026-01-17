@@ -4,7 +4,7 @@ from typing import List
 
 import pandas as pd
 
-from src.alpha_library.models import ResidualMomentumModel
+from src.alpha_library.models import MomentumModel
 from src.backtesting.engine import BacktestConfig, BacktestEngine
 from src.core.data_platform import DataPlatform
 from src.core.portfolio_manager import PortfolioManager
@@ -38,6 +38,13 @@ class MockProvider(DataProvider):
     ) -> pd.DataFrame:
         return pd.DataFrame(columns=["ticker", "ex_date", "type", "ratio"])
 
+    def fetch_events(
+        self, tickers: List[str], start: datetime, end: datetime
+    ) -> pd.DataFrame:
+        return pd.DataFrame(
+            columns=["ticker", "timestamp", "event_type", "value"]
+        )
+
 
 class TestBacktestEngine(unittest.TestCase):
     def setUp(self) -> None:
@@ -64,7 +71,7 @@ class TestBacktestEngine(unittest.TestCase):
         config = BacktestConfig(
             start_date=start,
             end_date=end,
-            alpha_models=[ResidualMomentumModel()],
+            alpha_models=[MomentumModel()],
             weights=[1.0],
             tickers=tickers,
             timeframe="30min",

@@ -1,11 +1,12 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List
 
 import pandas as pd
 
 from src.alpha_library.models import (
-    ResidualMomentumModel,
-    ResidualReversionModel,
+    EarningsModel,
+    MomentumModel,
+    ReversionModel,
 )
 from src.backtesting.engine import BacktestConfig, BacktestEngine
 from src.core.data_platform import DataPlatform
@@ -47,11 +48,28 @@ class MarketDataMock(DataProvider):
     ) -> pd.DataFrame:
         return pd.DataFrame(columns=["ticker", "ex_date", "type", "ratio"])
 
+    def fetch_events(
+        self, tickers: List[str], start: datetime, end: datetime
+    ) -> pd.DataFrame:
+        data = []
+        target_dt = pd.Timestamp(start).normalize() + timedelta(
+            days=1, hours=16
+        )
+        if "AAPL" in tickers and start <= target_dt <= end:
+            data.append(
+                {
+                    "ticker": "AAPL",
+                    "timestamp": target_dt,
+                    "event_type": "EARNINGS_RELEASE",
+                    "value": {"surprise_pct": 0.05},
+                }
+            )
+        return pd.DataFrame(data)
+
 
 def main() -> None:
     # 1. Setup Data & PM
     mock = MarketDataMock()
-    # Use clear=True to ensure we sync fresh data for the demo
     data = DataPlatform(provider=mock, clear=True)
     pm = PortfolioManager(max_pos=0.15, risk_aversion=1.5)
 
@@ -70,8 +88,12 @@ def main() -> None:
         BacktestConfig(
             start_date=start,
             end_date=end,
-            alpha_models=[ResidualMomentumModel(), ResidualReversionModel()],
-            weights=[0.5, 0.5],
+            alpha_models=[
+                MomentumModel(),
+                ReversionModel(),
+                EarningsModel(),
+            ],
+            weights=[0.4, 0.4, 0.2],
             tickers=tickers,
         )
     )
@@ -81,7 +103,8 @@ def main() -> None:
     print(f"Status: {stats['status']}")
     print(f"Total Return: {stats['total_return']:.2%}")
     print(f"Sharpe Ratio: {stats['sharpe']:.2f}")
-    print(f"Max Drawdown: {stats['drawdown']['max_dd']:.2%}")
+    if "drawdown" in stats and stats["drawdown"]:
+        print(f"Max Drawdown: {stats['drawdown']['max_dd']:.2%}")
     print(f"Final Equity: ${stats['final_equity']:,.2f}")
 
     print("\n--- Periodic Performance ---")

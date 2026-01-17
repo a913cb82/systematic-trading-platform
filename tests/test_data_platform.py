@@ -127,6 +127,13 @@ class TestDataPlatformFull(unittest.TestCase):
                     }
                 )
 
+            def fetch_events(
+                self, tickers: List[str], start: datetime, end: datetime
+            ) -> pd.DataFrame:
+                return pd.DataFrame(
+                    columns=["ticker", "timestamp", "event_type", "value"]
+                )
+
         dp = DataPlatform(MockProvider(), clear=True)
         dp.sync_data(["AAPL"], datetime(2025, 1, 1), datetime(2025, 1, 2))
         self.assertFalse(dp.ca_df.empty)

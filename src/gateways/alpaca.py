@@ -38,6 +38,14 @@ class AlpacaDataProvider(DataProvider):
         # Alpaca doesn't have a simple historical CA endpoint in the basic SDK.
         return pd.DataFrame(columns=["ticker", "ex_date", "type", "ratio"])
 
+    def fetch_events(
+        self, tickers: List[str], start: datetime, end: datetime
+    ) -> pd.DataFrame:
+        """Fetch fundamental or other irregular events."""
+        return pd.DataFrame(
+            columns=["ticker", "timestamp", "event_type", "value"]
+        )
+
 
 class AlpacaExecutionBackend(ExecutionBackend):
     def __init__(

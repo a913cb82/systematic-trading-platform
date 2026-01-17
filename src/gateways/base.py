@@ -17,7 +17,15 @@ class DataProvider(ABC):
     def fetch_corporate_actions(
         self, tickers: List[str], start: datetime, end: datetime
     ) -> pd.DataFrame:
-        """Returns a DataFrame with columns: [ticker, ex_date, type, ratio]"""
+        pass
+
+    @abstractmethod
+    def fetch_events(
+        self, tickers: List[str], start: datetime, end: datetime
+    ) -> pd.DataFrame:
+        """
+        Returns DataFrame with columns: [ticker, timestamp, event_type, value]
+        """
         pass
 
 
