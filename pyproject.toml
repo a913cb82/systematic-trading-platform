@@ -21,6 +21,7 @@ dependencies = [
     "scikit-learn",
     "alpaca-py",
     "arcticdb",
+    "tenacity",
 ]
 
 [project.optional-dependencies]

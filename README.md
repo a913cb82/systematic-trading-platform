@@ -8,8 +8,8 @@ The codebase is organized into modular packages within the `src/` directory:
 
 ### 1. `src/core/` (The Engine)
 Primary business logic and mathematical engines.
-- **`types.py`**: Centralized core dataclasses (Bar, Order, Security) and Enums (Timeframe, OrderState).
-- **`data_platform.py`**: Manages bitemporal Security Master, stateless bar aggregation, and ratio/difference corporate action adjustments.
+- **`types.py`**: Centralized core dataclasses (Bar, Order, Security) and Enums (Timeframe, OrderState, OrderSide).
+- **`data_platform.py`**: Manages bitemporal Security Master and ratio/difference corporate action adjustments.
 - **`alpha_engine.py`**: Base `AlphaModel` framework with thread-safe `contextvars` and a centralized feature registry.
 - **`portfolio_manager.py`**: QP Optimizer supporting **Total Expected Return reconstruction** using a statistical risk model.
 - **`execution_handler.py`**: Robust asynchronous manager using a centralized background worker for spaced-out order slicing.
@@ -17,7 +17,7 @@ Primary business logic and mathematical engines.
 
 ### 2. `src/backtesting/` (Simulation)
 Formalized research and simulation tools.
-- **`engine.py`**: Multi-day simulation loop with risk model updates and rebalancing cycles.
+- **`engine.py`**: Simulation loop.
 - **`analytics.py`**: Performance metrics (Sharpe, Drawdown) and PnL attribution.
 - **`demo.py`**: End-to-end backtest simulation demonstrating the full stack.
 
@@ -34,9 +34,7 @@ Alpha research artifacts and reusable signals.
 ## Design Philosophy
 - **Simplicity & Legibility**: Designed as a substantially complete demo that remains easy to read, avoiding the bloat of production systems while maintaining high-fidelity logic.
 - **Data Integrity**: Bitemporal modeling to distinguish between Event Time and Knowledge Time, eliminating look-ahead bias.
-- **Type Safety**: Centralized `types.py` and robust `Timeframe` enums ensure consistency across research and production.
 - **Factor Neutrality**: Focus on isolating idiosyncratic returns (alpha) by forecasting residuals against statistical risk factors.
-- **Consistency**: Shared feature registry and calculation logic ensure backtested performance matches live execution.
 
 ## Development
 
@@ -92,6 +90,6 @@ To run the system against Alpaca's Paper Trading API:
 2.  Run the live demo:
     ```bash
     export PYTHONPATH=$PYTHONPATH:.
-    python src/live_demo.py
+    python -m src.live_demo
     ```
-    The system will automatically load the credentials from `.env` and switch from Mock to Live mode.
+    The system will verify credentials and show real-time portfolio value, positions, and active orders.
