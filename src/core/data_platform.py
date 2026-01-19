@@ -7,6 +7,7 @@ import pandas as pd
 from arcticdb import Arctic, QueryBuilder
 
 from src.core.types import (
+    PRICE_VOLUME_COLS,
     Bar,
     CorporateAction,
     Event,
@@ -50,9 +51,7 @@ class DataPlatform:
             elif pd.api.types.is_datetime64_any_dtype(df[c]):
                 df[c] = pd.to_datetime(df[c]).dt.tz_localize(None)
 
-        float_cols = set(df.columns).intersection(
-            ["open", "high", "low", "close", "volume"]
-        )
+        float_cols = set(df.columns).intersection(PRICE_VOLUME_COLS)
         for col in float_cols:
             df[col] = df[col].astype(float)
 
@@ -188,26 +187,32 @@ class DataPlatform:
 
     def add_bars(self, bars: List[Bar]) -> None:
         df = pd.DataFrame([asdict(b) for b in bars])
-        if not df.empty:
-            m = df.internal_id <= 0
-            if m.any():
-                df.loc[m, "internal_id"] = df[m].apply(
-                    lambda r: self.get_internal_id(
-                        r.get("_ticker") or "", r.timestamp
-                    ),
-                    1,
-                )
-            if "_ticker" in df.columns:
-                df = df.drop(columns=["_ticker"])
+        if df.empty:
+            return
+        m = df.internal_id <= 0
+        if m.any():
+            df.loc[m, "internal_id"] = df[m].apply(
+                lambda r: self.get_internal_id(
+                    r.get("_ticker") or "", r.timestamp
+                ),
+                1,
+            )
+        if "_ticker" in df.columns:
+            df = df.drop(columns=["_ticker"])
         self._write("bars", df)
 
     def add_events(self, evs: List[Event]) -> None:
         df = pd.DataFrame([asdict(e) for e in evs])
+        if df.empty:
+            return
         df = df.assign(value=lambda x: x.value.apply(json.dumps))
         self._write("events", df)
 
     def add_ca(self, ca: CorporateAction) -> None:
-        self._write("ca_df", pd.DataFrame([asdict(ca)]))
+        df = pd.DataFrame([asdict(ca)])
+        if df.empty:
+            return
+        self._write("ca_df", df)
 
     def get_bars(self, iids: List[int], cfg: QueryConfig) -> pd.DataFrame:
         def q(tf: Timeframe) -> pd.DataFrame:

@@ -2,7 +2,11 @@ import threading
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Optional
+from typing import Any, List, Optional
+
+# Constants
+PRICE_VOLUME_COLS: List[str] = ["open", "high", "low", "close", "volume"]
+STANDARD_BAR_COLS: List[str] = ["ticker", "timestamp"] + PRICE_VOLUME_COLS
 
 
 class Timeframe(Enum):

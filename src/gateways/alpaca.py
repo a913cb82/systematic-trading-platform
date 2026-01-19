@@ -17,8 +17,14 @@ from alpaca.data.timeframe import TimeFrameUnit
 from alpaca.trading.client import TradingClient
 from alpaca.trading.enums import OrderSide, TimeInForce
 from alpaca.trading.requests import MarketOrderRequest
+from tenacity import (
+    before_sleep_log,
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+)
 
-from src.core.types import Bar, Timeframe
+from src.core.types import STANDARD_BAR_COLS, Bar, Timeframe
 
 from .base import (
     BarProvider,
@@ -47,6 +53,11 @@ class AlpacaDataProvider(BarProvider, CorporateActionProvider, EventProvider):
         val, unit = mapping.get(timeframe, (1, TimeFrameUnit.Minute))
         return AlpacaTimeFrame(val, unit)
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+    )
     def fetch_bars(
         self,
         tickers: List[str],
@@ -62,38 +73,14 @@ class AlpacaDataProvider(BarProvider, CorporateActionProvider, EventProvider):
             end=end,
             feed=DataFeed.IEX,
         )
-        try:
-            bars = self.client.get_stock_bars(request_params)
-            df = getattr(bars, "df")
-            if df.empty:
-                return pd.DataFrame(
-                    columns=[
-                        "ticker",
-                        "timestamp",
-                        "open",
-                        "high",
-                        "low",
-                        "close",
-                        "volume",
-                    ]
-                )
+        bars = self.client.get_stock_bars(request_params)
+        df = getattr(bars, "df")
+        if df.empty:
+            return pd.DataFrame(columns=STANDARD_BAR_COLS)
 
-            df = df.reset_index()
-            df = df.rename(columns={"symbol": "ticker"})
-            return df[
-                [
-                    "ticker",
-                    "timestamp",
-                    "open",
-                    "high",
-                    "low",
-                    "close",
-                    "volume",
-                ]
-            ]
-        except Exception as e:
-            logger.error(f"Alpaca Fetch Bars Error: {e}")
-            return pd.DataFrame()
+        df = df.reset_index()
+        df = df.rename(columns={"symbol": "ticker"})
+        return df[STANDARD_BAR_COLS]
 
     def fetch_corporate_actions(
         self, tickers: List[str], start: datetime, end: datetime
