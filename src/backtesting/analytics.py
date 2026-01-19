@@ -79,11 +79,14 @@ class PerformanceAnalyzer:
             net_cum = (1 + group["net_ret"]).prod() - 1
 
             # Multiplier for annualization
-            ann_factor = (
-                252
-                if freq == "D"
-                else (52 if freq == "W" else (12 if freq == "M" else 1))
-            )
+            # Frequencies: D=Daily, W=Weekly, ME=MonthEnd, YE=YearEnd
+            ann_factor = 252  # Default
+            if freq == "W":
+                ann_factor = 52
+            elif freq in ["M", "ME"]:
+                ann_factor = 12
+            elif freq in ["Y", "YE"]:
+                ann_factor = 1
 
             g_sharpe = PerformanceAnalyzer.calculate_sharpe(
                 group["gross_ret"], freq_multiplier=ann_factor

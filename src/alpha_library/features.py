@@ -11,7 +11,7 @@ from src.core.types import Timeframe
 )
 def returns_raw(df: pd.DataFrame, tf: Timeframe) -> pd.Series:
     col = f"close_{tf.value}"
-    return df.groupby("internal_id")[col].pct_change()
+    return df.groupby("internal_id")[col].pct_change(fill_method=None)
 
 
 @multi_tf_feature(

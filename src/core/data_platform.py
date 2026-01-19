@@ -36,6 +36,27 @@ class DataPlatform:
             (p for p in providers if hasattr(p, "subscribe")), None
         )
 
+    def _get_deduplicated_data(
+        self, sym: str, df: pd.DataFrame
+    ) -> pd.DataFrame:
+        symbols_to_dedup = ["bars", "events", "ca_df", "sec_df"]
+        if sym in symbols_to_dedup and self.lib.has_symbol(sym):
+            ex = self.lib.read(sym).data
+            if isinstance(ex.index, pd.DatetimeIndex):
+                ex.index = ex.index.tz_localize(None)
+
+            to_concat = []
+            if not ex.empty:
+                is_range = isinstance(ex.index, pd.RangeIndex)
+                to_concat.append(ex.reset_index() if not is_range else ex)
+            if not df.empty:
+                is_range = isinstance(df.index, pd.RangeIndex)
+                to_concat.append(df.reset_index() if not is_range else df)
+
+            if to_concat:
+                return pd.concat(to_concat)
+        return df
+
     def _write(self, sym: str, df: pd.DataFrame) -> None:
         if df.empty:
             return
@@ -48,31 +69,13 @@ class DataPlatform:
             if pd.api.types.is_datetime64_any_dtype(df[c]):
                 df[c] = pd.to_datetime(df[c]).dt.tz_localize(None)
 
-        if sym in ["bars", "events", "ca_df", "sec_df"] and (
-            self.lib.has_symbol(sym)
-        ):
-            ex = self.lib.read(sym).data
-            if isinstance(ex.index, pd.DatetimeIndex):
-                ex.index = ex.index.tz_localize(None)
-            df = pd.concat(
-                [
-                    ex.reset_index()
-                    if not isinstance(ex.index, pd.RangeIndex)
-                    else ex,
-                    df.reset_index()
-                    if not isinstance(df.index, pd.RangeIndex)
-                    else df,
-                ]
-            )
+        df = self._get_deduplicated_data(sym, df)
 
         idx_col = next(
             (c for c in ["timestamp", "ex_date"] if c in df.columns), None
         )
         if idx_col:
-            df = df.set_index(idx_col)
-            if isinstance(df.index, pd.DatetimeIndex):
-                df.index = df.index.tz_localize(None)
-            # PIT Deduplication: keep the version with the LATEST knowledge
+            # Bitemporal Deduplication: Keep only truly unique versions
             subset = [idx_col, "internal_id"]
             if sym == "bars":
                 subset.append("timeframe")
