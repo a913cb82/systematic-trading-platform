@@ -75,7 +75,7 @@ class DataPlatform:
             except Exception:
                 pass  # Fallback to slow path
 
-        # 3. Unified Slow Path: Read-Modify-Write
+        # 3. Fallback: Deduplicate (e.g. overwriting past data)
         combined = df
         if self.lib.has_symbol(sym):
             existing = self.lib.read(sym).data
