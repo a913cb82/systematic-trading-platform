@@ -96,7 +96,11 @@ class BacktestEngine:
         current_bars = self.data.get_bars(
             iids, QueryConfig(start=ts, end=ts, timeframe=config.timeframe)
         )
-        next_ts = ts + timedelta(hours=1)
+
+        # FIX: Use config.timeframe for next step, not hardcoded 1h
+        delta = pd.to_timedelta(config.timeframe.pandas_freq)
+        next_ts = ts + delta
+
         next_bars = self.data.get_bars(
             iids,
             QueryConfig(

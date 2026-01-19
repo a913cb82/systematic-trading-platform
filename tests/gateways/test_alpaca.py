@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pandas as pd
 
-from src.core.types import Timeframe
+from src.core.types import OrderSide, Timeframe
 from src.gateways.alpaca import AlpacaDataProvider, AlpacaExecutionBackend
 
 # Constants to avoid magic values
@@ -53,11 +53,13 @@ def test_alpaca_execution_backend_submits_market_orders(
     mock_instance = mock_trading_client.return_value
     backend = AlpacaExecutionBackend("key", "secret")
 
-    assert backend.submit_order(AAPL_TICKER, DEFAULT_QTY, "BUY")
+    assert backend.submit_order(AAPL_TICKER, DEFAULT_QTY, OrderSide.BUY.value)
     mock_instance.submit_order.assert_called_once()
 
     mock_instance.submit_order.side_effect = Exception("API Error")
-    assert not backend.submit_order(AAPL_TICKER, DEFAULT_QTY, "SELL")
+    assert not backend.submit_order(
+        AAPL_TICKER, DEFAULT_QTY, OrderSide.SELL.value
+    )
 
 
 def test_alpaca_execution_backend_handles_position_retrieval_errors() -> None:

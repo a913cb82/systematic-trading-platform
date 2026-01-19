@@ -110,11 +110,16 @@ class OrderState(Enum):
         )
 
 
+class OrderSide(Enum):
+    BUY = "BUY"
+    SELL = "SELL"
+
+
 class Order:
     _id_counter = 1
     _id_lock = threading.Lock()
 
-    def __init__(self, ticker: str, quantity: float, side: str):
+    def __init__(self, ticker: str, quantity: float, side: OrderSide):
         with Order._id_lock:
             self.order_id = Order._id_counter
             Order._id_counter += 1

@@ -36,61 +36,71 @@ class DataPlatform:
             (p for p in providers if hasattr(p, "subscribe")), None
         )
 
-    def _get_deduplicated_data(
-        self, sym: str, df: pd.DataFrame
-    ) -> pd.DataFrame:
-        symbols_to_dedup = ["bars", "events", "ca_df", "sec_df"]
-        if sym in symbols_to_dedup and self.lib.has_symbol(sym):
-            ex = self.lib.read(sym).data
-            if isinstance(ex.index, pd.DatetimeIndex):
-                ex.index = ex.index.tz_localize(None)
-
-            to_concat = []
-            if not ex.empty:
-                is_range = isinstance(ex.index, pd.RangeIndex)
-                to_concat.append(ex.reset_index() if not is_range else ex)
-            if not df.empty:
-                is_range = isinstance(df.index, pd.RangeIndex)
-                to_concat.append(df.reset_index() if not is_range else df)
-
-            if to_concat:
-                return pd.concat(to_concat)
-        return df
-
     def _write(self, sym: str, df: pd.DataFrame) -> None:
         if df.empty:
             return
         df = df.copy()
+
+        # 1. Type Coercion & Schema Enforcement
         for c in df.columns:
             if df[c].dtype == object:
                 df[c] = df[c].apply(
                     lambda x: x.value if isinstance(x, Timeframe) else x
                 )
-            if pd.api.types.is_datetime64_any_dtype(df[c]):
+            elif pd.api.types.is_datetime64_any_dtype(df[c]):
                 df[c] = pd.to_datetime(df[c]).dt.tz_localize(None)
 
-        df = self._get_deduplicated_data(sym, df)
+        float_cols = set(df.columns).intersection(
+            ["open", "high", "low", "close", "volume"]
+        )
+        for col in float_cols:
+            df[col] = df[col].astype(float)
 
         idx_col = next(
             (c for c in ["timestamp", "ex_date"] if c in df.columns), None
         )
-        if idx_col:
-            # Bitemporal Deduplication: Keep only truly unique versions
-            subset = [idx_col, "internal_id"]
-            if sym == "bars":
-                subset.append("timeframe")
-            if "timestamp_knowledge" in df.columns:
-                subset.append("timestamp_knowledge")
 
-            # Ensure index column is present for subset check
-            df_check = df.reset_index() if idx_col not in df.columns else df
-            df = df_check.drop_duplicates(subset=subset, keep="last")
-            df = df.set_index(idx_col).sort_index()
-            if isinstance(df.index, pd.DatetimeIndex):
-                df.index = df.index.tz_localize(None)
-        else:
-            df = df.drop_duplicates().reset_index(drop=True)
-        self.lib.write(sym, df)
+        # 2. Fast Path: Try 'append' for scalable timeseries
+        if sym in ["bars", "events"]:
+            try:
+                # Prepare for append (needs index set)
+                to_append = (
+                    df.set_index(idx_col).sort_index() if idx_col else df
+                )
+                if isinstance(to_append.index, pd.DatetimeIndex):
+                    to_append.index = to_append.index.tz_localize(None)
+
+                self.lib.append(sym, to_append)
+                return
+            except Exception:
+                pass  # Fallback to slow path
+
+        # 3. Unified Slow Path: Read-Modify-Write
+        combined = df
+        if self.lib.has_symbol(sym):
+            existing = self.lib.read(sym).data
+            if isinstance(existing.index, pd.DatetimeIndex):
+                existing.index = existing.index.tz_localize(None)
+
+            if idx_col:
+                # Unpack index to columns for deduplication
+                existing = existing.reset_index()
+
+            # Combine flat DataFrames
+            combined = pd.concat([existing, df], ignore_index=True)
+
+        # Define deduplication strategy
+        subset = {
+            "sec_df": ["internal_id"],
+            "ca_df": ["internal_id", "ex_date", "type"],
+        }.get(sym)
+
+        combined = combined.drop_duplicates(subset=subset, keep="last")
+
+        if idx_col:
+            combined = combined.set_index(idx_col).sort_index()
+
+        self.lib.write(sym, combined)
 
     def _read(self, sym: str) -> pd.DataFrame:
         if self.lib.has_symbol(sym):

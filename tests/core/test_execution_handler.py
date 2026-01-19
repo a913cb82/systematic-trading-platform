@@ -8,6 +8,7 @@ from src.core.execution_handler import (
     OrderState,
     TCAEngine,
 )
+from src.core.types import OrderSide
 
 # Constants to avoid magic values
 AAPL_TICKER = "AAPL"
@@ -40,7 +41,9 @@ def test_execution_handler_rebalances_portfolio_using_sliced_orders(
         time.sleep(0.01)
 
     assert mock_backend.submit_order.call_count == TOTAL_SLICES
-    mock_backend.submit_order.assert_any_call(AAPL_TICKER, SLICE_QTY, "BUY")
+    mock_backend.submit_order.assert_any_call(
+        AAPL_TICKER, SLICE_QTY, OrderSide.BUY.value
+    )
 
 
 def test_execution_handler_stops_slicing_on_order_cancellation(
@@ -48,7 +51,7 @@ def test_execution_handler_stops_slicing_on_order_cancellation(
 ) -> None:
     handler = ExecutionHandler(mock_backend)
     order = handler.vwap_execute(
-        AAPL_TICKER, VWAP_QTY, "BUY", slices=VWAP_SLICES, interval=0.1
+        AAPL_TICKER, VWAP_QTY, OrderSide.BUY, slices=VWAP_SLICES, interval=0.1
     )
     time.sleep(0.05)
     handler.cancel_order(order.order_id)
@@ -63,7 +66,11 @@ def test_execution_handler_sets_rejected_state_on_backend_failure(
     mock_backend.submit_order.side_effect = [True, False]
     handler = ExecutionHandler(mock_backend)
     order = handler.vwap_execute(
-        AAPL_TICKER, VWAP_QTY, "BUY", slices=DUAL_SLICE_COUNT, interval=0.01
+        AAPL_TICKER,
+        VWAP_QTY,
+        OrderSide.BUY,
+        slices=DUAL_SLICE_COUNT,
+        interval=0.01,
     )
 
     max_wait = 1.0
@@ -78,7 +85,7 @@ def test_execution_handler_sets_rejected_state_on_backend_failure(
 
 
 def test_order_object_updates_state_correctly_on_partial_fills() -> None:
-    o = Order(AAPL_TICKER, VWAP_QTY, "BUY")
+    o = Order(AAPL_TICKER, VWAP_QTY, OrderSide.BUY)
     o.update(FILL_QTY)
     assert o.state == OrderState.PARTIAL
     o.update(FILL_QTY)
@@ -86,12 +93,17 @@ def test_order_object_updates_state_correctly_on_partial_fills() -> None:
 
 
 def test_tca_engine_calculates_slippage_from_arrival_prices() -> None:
-    assert TCAEngine.calculate_slippage(0, 100, "BUY") == 0.0
-    assert TCAEngine.calculate_slippage(100, 101, "BUY") == SLIPPAGE_BASE
-    assert TCAEngine.calculate_slippage(100, 99, "SELL") == SLIPPAGE_BASE
+    assert TCAEngine.calculate_slippage(0, 100, OrderSide.BUY) == 0.0
+    assert (
+        TCAEngine.calculate_slippage(100, 101, OrderSide.BUY) == SLIPPAGE_BASE
+    )
+    assert (
+        TCAEngine.calculate_slippage(100, 99, OrderSide.SELL) == SLIPPAGE_BASE
+    )
 
 
 def test_fix_engine_logon_stub_returns_success() -> None:
     fix = FIXEngine("TEST")
     assert fix.logon()
-    assert AAPL_TICKER in fix.send_order(AAPL_TICKER, 10, "BUY")
+    order_msg = fix.send_order(AAPL_TICKER, 10, OrderSide.BUY)
+    assert AAPL_TICKER in order_msg

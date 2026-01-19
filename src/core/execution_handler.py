@@ -2,7 +2,7 @@ import threading
 import time
 from typing import Dict, List, Optional
 
-from src.core.types import ChildOrder, Order, OrderState
+from src.core.types import ChildOrder, Order, OrderSide, OrderState
 from src.gateways.base import ExecutionBackend
 
 
@@ -38,7 +38,9 @@ class ExecutionHandler:
                     continue
 
                 success = self.backend.submit_order(
-                    child.parent.ticker, child.quantity, child.parent.side
+                    child.parent.ticker,
+                    child.quantity,
+                    child.parent.side.value,
                 )
                 if success:
                     child.parent.update(child.quantity)
@@ -51,7 +53,7 @@ class ExecutionHandler:
         self,
         ticker: str,
         total_qty: float,
-        side: str,
+        side: OrderSide,
         slices: int = 5,
         interval: float = 1.0,
     ) -> Order:
@@ -109,14 +111,16 @@ class ExecutionHandler:
                 order = self.vwap_execute(
                     ticker,
                     abs(diff),
-                    "BUY" if diff > 0 else "SELL",
+                    OrderSide.BUY if diff > 0 else OrderSide.SELL,
                     interval=interval,
                 )
                 new_orders.append(order)
         return new_orders
 
-    def execute_direct(self, ticker: str, quantity: float, side: str) -> bool:
-        return self.backend.submit_order(ticker, quantity, side)
+    def execute_direct(
+        self, ticker: str, quantity: float, side: OrderSide
+    ) -> bool:
+        return self.backend.submit_order(ticker, quantity, side.value)
 
     def cancel_order(self, order_id: int) -> bool:
         """Attempts to cancel a parent order (stops further slicing)."""
@@ -134,11 +138,11 @@ class ExecutionHandler:
 class TCAEngine:
     @staticmethod
     def calculate_slippage(
-        arrival_price: float, execution_price: float, side: str
+        arrival_price: float, execution_price: float, side: OrderSide
     ) -> float:
         if arrival_price == 0:
             return 0.0
-        sign = 1 if side == "BUY" else -1
+        sign = 1 if side == OrderSide.BUY else -1
         return sign * (execution_price - arrival_price) / arrival_price * 10000
 
 
@@ -151,5 +155,5 @@ class FIXEngine:
         self.connected = True
         return True
 
-    def send_order(self, ticker: str, qty: float, side: str) -> str:
+    def send_order(self, ticker: str, qty: float, side: OrderSide) -> str:
         return f"FIX_ORDER_ID_{ticker}_{qty}"
