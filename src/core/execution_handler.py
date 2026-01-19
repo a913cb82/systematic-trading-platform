@@ -49,7 +49,7 @@ class ExecutionHandler:
 
             time.sleep(0.1)
 
-    def vwap_execute(
+    def twap_execute(
         self,
         ticker: str,
         total_qty: float,
@@ -108,7 +108,7 @@ class ExecutionHandler:
             diff = target - current
 
             if abs(diff) > trade_tolerance:
-                order = self.vwap_execute(
+                order = self.twap_execute(
                     ticker,
                     abs(diff),
                     OrderSide.BUY if diff > 0 else OrderSide.SELL,

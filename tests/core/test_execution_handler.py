@@ -17,8 +17,8 @@ START_PRICE = 100.0
 GOAL_QTY = 50.0
 TOTAL_SLICES = 5
 SLICE_QTY = 8.0  # (50-10)/5
-VWAP_QTY = 100.0
-VWAP_SLICES = 10
+TWAP_QTY = 100.0
+TWAP_SLICES = 10
 FILL_QTY = 50.0
 SLIPPAGE_BASE = 100.0
 MAX_SLICES_ON_CANCEL = 2
@@ -50,8 +50,8 @@ def test_execution_handler_stops_slicing_on_order_cancellation(
     mock_backend: Any,
 ) -> None:
     handler = ExecutionHandler(mock_backend)
-    order = handler.vwap_execute(
-        AAPL_TICKER, VWAP_QTY, OrderSide.BUY, slices=VWAP_SLICES, interval=0.1
+    order = handler.twap_execute(
+        AAPL_TICKER, TWAP_QTY, OrderSide.BUY, slices=TWAP_SLICES, interval=0.1
     )
     time.sleep(0.05)
     handler.cancel_order(order.order_id)
@@ -65,9 +65,9 @@ def test_execution_handler_sets_rejected_state_on_backend_failure(
 ) -> None:
     mock_backend.submit_order.side_effect = [True, False]
     handler = ExecutionHandler(mock_backend)
-    order = handler.vwap_execute(
+    order = handler.twap_execute(
         AAPL_TICKER,
-        VWAP_QTY,
+        TWAP_QTY,
         OrderSide.BUY,
         slices=DUAL_SLICE_COUNT,
         interval=0.01,
@@ -85,7 +85,7 @@ def test_execution_handler_sets_rejected_state_on_backend_failure(
 
 
 def test_order_object_updates_state_correctly_on_partial_fills() -> None:
-    o = Order(AAPL_TICKER, VWAP_QTY, OrderSide.BUY)
+    o = Order(AAPL_TICKER, TWAP_QTY, OrderSide.BUY)
     o.update(FILL_QTY)
     assert o.state == OrderState.PARTIAL
     o.update(FILL_QTY)
