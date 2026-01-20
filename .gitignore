@@ -1,31 +1,28 @@
-# Environments
-.venv/
-env/
-venv/
-ENV/
-
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-*.so
-.python-version
 
 # Caches and Tools
-.pytest_cache/
-.ruff_cache/
-.mypy_cache/
-.coverage
-.ipynb_checkpoints/
-
-# OS
-.DS_Store
-.directory
-
 # Data
-.arctic*/
-
+# Environments
 # Local environment variables
+# OS
+# Python
+*.pyc
+*.pyd
+*.pyo
+*.so
+.DS_Store
+.arctic*/
+.coverage
+.directory
 .env
 .env.local
+.ipynb_checkpoints/
+.mypy_cache/
+.pytest_cache/
+.python-version
+.ruff_cache/
+.venv/
+ENV/
+__pycache__/
+env/
+requirements.snapshot.txt
+venv/
