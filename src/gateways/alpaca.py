@@ -1,4 +1,5 @@
 import logging
+import warnings
 from datetime import datetime
 from typing import Callable, Dict, List, cast
 
@@ -6,7 +7,14 @@ import pandas as pd
 from alpaca.common.exceptions import APIError
 from alpaca.data.enums import DataFeed
 from alpaca.data.historical import StockHistoricalDataClient
-from alpaca.data.live import StockDataStream
+
+# Suppress deprecated websockets warning from alpaca-py
+with warnings.catch_warnings():
+    warnings.filterwarnings(
+        "ignore", category=DeprecationWarning, message=".*websockets.legacy.*"
+    )
+    from alpaca.data.live import StockDataStream
+
 from alpaca.data.models import Bar as AlpacaBar
 from alpaca.data.requests import (
     StockBarsRequest,

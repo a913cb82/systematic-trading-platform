@@ -1,4 +1,5 @@
 import json
+import warnings
 from dataclasses import asdict
 from datetime import datetime
 from typing import Any, Dict, List, Optional, cast
@@ -37,6 +38,19 @@ class DataPlatform:
             (p for p in providers if hasattr(p, "subscribe")), None
         )
 
+    def _safe_read(
+        self, sym: str, query_builder: Optional[QueryBuilder] = None
+    ) -> pd.DataFrame:
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                category=DeprecationWarning,
+                message=".*BlockManagerUnconsolidated.*",
+            )
+            if query_builder:
+                return self.lib.read(sym, query_builder=query_builder).data
+            return self.lib.read(sym).data
+
     def _write(self, sym: str, df: pd.DataFrame) -> None:
         if df.empty:
             return
@@ -74,10 +88,9 @@ class DataPlatform:
             except Exception:
                 pass  # Fallback to slow path
 
-        # 3. Fallback: Deduplicate (e.g. overwriting past data)
         combined = df
         if self.lib.has_symbol(sym):
-            existing = self.lib.read(sym).data
+            existing = self._safe_read(sym)
             if isinstance(existing.index, pd.DatetimeIndex):
                 existing.index = existing.index.tz_localize(None)
 
@@ -103,7 +116,7 @@ class DataPlatform:
 
     def _read(self, sym: str) -> pd.DataFrame:
         if self.lib.has_symbol(sym):
-            return self.lib.read(sym).data
+            return self._safe_read(sym)
         return pd.DataFrame()
 
     @property
@@ -228,7 +241,7 @@ class DataPlatform:
             ]
             if not self.lib.has_symbol("bars"):
                 return pd.DataFrame()
-            df = self.lib.read("bars", query_builder=qb).data.reset_index()
+            df = self._safe_read("bars", query_builder=qb).reset_index()
             if not df.empty:
                 df["timestamp_knowledge"] = pd.to_datetime(
                     df["timestamp_knowledge"]
@@ -318,7 +331,7 @@ class DataPlatform:
         qb = qb[qb.internal_id.isin(iids)]
         if not self.lib.has_symbol("events"):
             return []
-        df = self.lib.read("events", query_builder=qb).data.reset_index()
+        df = self._safe_read("events", query_builder=qb).reset_index()
         if df.empty:
             return []
         df["timestamp_knowledge"] = pd.to_datetime(

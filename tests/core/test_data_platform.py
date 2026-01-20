@@ -1,3 +1,4 @@
+import warnings
 from datetime import datetime, timedelta
 from typing import Any, List
 
@@ -169,7 +170,15 @@ def test_dataplatform_syncs_data_from_multiple_providers(
     dp = DataPlatform(mock_provider, db_path=arctic_db_path, clear=True)
     iid = dp.register_security(AAPL_TICKER)
     dp.sync_data([AAPL_TICKER], datetime(2025, 1, 1), datetime(2025, 1, 1))
-    assert dp.lib.read("bars").data.iloc[0]["internal_id"] == iid
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            category=DeprecationWarning,
+            message=".*BlockManagerUnconsolidated.*",
+        )
+        assert dp.lib.read("bars").data.iloc[0]["internal_id"] == iid
+
     assert dp.ca_df.iloc[0]["internal_id"] == iid
 
 
@@ -258,7 +267,15 @@ def test_dataplatform_preserves_bitemporal_integrity_on_write(
     df = data_platform.get_bars([iid], query)
     assert len(df) == 1
     assert df.iloc[0]["close_1min"] == RESTATED_PRICE
-    raw = data_platform.lib.read("bars").data
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            category=DeprecationWarning,
+            message=".*BlockManagerUnconsolidated.*",
+        )
+        raw = data_platform.lib.read("bars").data
+
     assert len(raw) == BAR_HIST_2
 
 
@@ -302,7 +319,15 @@ def test_dataplatform_sync_resolves_internal_ids(arctic_db_path: str) -> None:
     dp = DataPlatform(MockProv(), db_path=arctic_db_path, clear=True)
     expected_iid = dp.register_security(AAPL_TICKER)
     dp.sync_data([AAPL_TICKER], datetime(2025, 1, 1), datetime(2025, 1, 1))
-    assert dp.lib.read("bars").data.iloc[0]["internal_id"] == expected_iid
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            category=DeprecationWarning,
+            message=".*BlockManagerUnconsolidated.*",
+        )
+        assert dp.lib.read("bars").data.iloc[0]["internal_id"] == expected_iid
+
     assert dp.ca_df.iloc[0]["internal_id"] == expected_iid
 
 
